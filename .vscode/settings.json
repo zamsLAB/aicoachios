@@ -1,0 +1,5 @@
+{
+    "xml.downloadExternalResources.enabled": true,
+    "swift.sourcekit-lsp.disable": true,
+    "swift.disableSwiftPackageManagerIntegration": true
+}

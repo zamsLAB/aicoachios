@@ -1,0 +1,14 @@
+app_identifier("com.aicoachios.app") # 앱의 Bundle ID
+
+# CI/CD(환경변수) 및 로컬 환경 모두 대응 가능한 API 키 설정
+app_store_connect_api_key(
+  key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"] || "GUPU6MF67P",
+  issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"] || "dd22b195-cf15-49cb-bf5a-e9be05a8816a",
+  # 1. Base64 인코딩된 키 내용이 환경 변수로 전달된 경우
+  key_content: ENV["APP_STORE_CONNECT_API_KEY_BASE64"],
+  is_key_content_base64: !ENV["APP_STORE_CONNECT_API_KEY_BASE64"].nil?,
+  # 2. 로컬 파일 경로 fallback (Base64 환경변수가 없을 때 사용)
+  key_filepath: ENV["APP_STORE_CONNECT_API_KEY_BASE64"] ? nil : "./fastlane/AuthKey_GUPU6MF67P.p8",
+  duration: 1200,
+  in_house: false
+)

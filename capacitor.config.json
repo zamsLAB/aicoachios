@@ -1,0 +1,20 @@
+{
+  "appId": "com.aicoachios.app",
+  "appName": "AIcoach",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "iosScheme": "capacitor"
+  },
+  "ios": {
+    "contentInset": "always",
+    "preferredContentMode": "mobile",
+    "scheme": "AIcoach"
+  },
+  "plugins": {
+    "AdMob": {
+      "appId": "ca-app-pub-6698738823810950~3272912009",
+      "initializeForTesting": false
+    }
+  }
+}

@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gamja+Flower&family=Jua&family=Hi+Melody&family=Single+Day&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans KR", "Inter", sans-serif;
+  --font-diary: "Gaegu", "Single Day", cursive, sans-serif;
+  --font-cute: "Jua", "Gamja Flower", cursive, sans-serif;
+
+  --color-dark-base: #0B0B12;
+  --color-dark-surface: #141521;
+  --color-dark-elevated: #1A1C29;
+  --color-gold-base: #E2B96D;
+  --color-gold-light: #F4D393;
+  --color-purple-accent: #735bf2;
+  --color-purple-light: #9986ff;
+  --color-text-main: #F8F9FA;
+  --color-text-sub: #9E9EA8;
+}
+
+:root {
+  color-scheme: light;
+
+  /* Default Light Mode (Original pastel purple theme) */
+  --bg-outer: #F3EEFB;
+  --bg-app: #FAF7FF;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F5F0FF;
+  --bg-input: #FFFFFF;
+  
+  --text-main: #1E1B4B;
+  --text-sub: #64748B;
+  
+  --accent-purple: #8B5CF6;
+  --accent-purple-light: #A855F7;
+  --accent-gold: #D97706;
+  --accent-gold-light: #B45309;
+  
+  --border-subtle: rgba(233, 213, 255, 0.8);
+  --border-gold: rgba(217, 119, 6, 0.3);
+  
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --header-bg: #FFFFFF;
+  --header-border: #E9D5FF;
+}
+
+html {
+  background-color: #F3EEFB !important;
+  min-height: 100%;
+}
+
+body {
+  background-color: #F3EEFB !important;
+  color: #1E1B4B !important;
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+  margin: 0;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+.app-shell {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.bottom-dock {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Custom scrollbar for dark aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1A1C29;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #25283b;
+}
+
+/* Glowing animations and keyframes */
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 1;
+  }
+}
+
+.glow-avatar {
+  box-shadow: 0 0 20px rgba(115, 91, 242, 0.4);
+}
+
+/* Twinkling star simulation */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.star {
+  animation: twinkle 3s infinite ease-in-out;
+}
+

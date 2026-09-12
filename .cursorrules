@@ -1,0 +1,20 @@
+# Cursor AI Rules for teens-friendly Saju-Coaching App
+
+## Project Context
+- **Target Audience**: Teens (10s), high-schoolers, and middle-schoolers. The UI must be highly intuitive, visually cute, clean, and simple to use.
+- **Tone**: Friendly, respectful, and polite (존대말/존칭 모드 - e.g., "~해요", "~해드릴게요"), but with a cute, cozy teenage aesthetic.
+- **Tech Stack**: React (Vite) + Tailwind CSS + Lucide React + Motion.
+
+## Design Guidelines
+- **Typography**: Clean, high-contrast, beautiful layout with generous padding and negative space.
+- **Colors**: Soft gradients, pastel purples, warm pinks, and cute border borders (e.g., `border-purple-100/50`, `bg-white/60 backdrop-blur-md`).
+- **Aesthetic**: Modern, card-based flat design. Avoid cluttered details or complex navigation sidebars. Stick to the floating bottom tab bar (`coaching`, `matching`, `profile`).
+
+## Cursor Usage Optimizations (For Free Tier & Token Saving)
+1. **Focus on Individual Components**: Since the code is beautifully modularized, edit only the specific component you need:
+   - `/src/components/MoodCalendar.tsx` (Handles calendar rendering and cell selection)
+   - `/src/components/MatchingSection.tsx` (Handles compatibility matching logic and register flow)
+   - `/src/components/ProfileSection.tsx` (Handles user profile display and settings)
+   - `/src/App.tsx` (The main router, onboarding flow, and global state)
+2. **Minimize Context Overhead**: When prompting, reference only the file you are currently modifying (using `@filename` in Cursor Chat) to save your free-tier token quota.
+3. **Use Fast Models**: For styling or minor refactoring, switch to faster models (like `gpt-4o-mini`) which consume fewer credits. Use premium models (like `claude-3-5-sonnet`) only for complex logic additions.

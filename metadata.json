@@ -1,0 +1,8 @@
+{
+  "name": "Remix AI 데일리 코칭 ios5.0",
+  "description": "MZ 라이프스타일 컨디션 바이오리듬 AI 분석 코칭 앱",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
