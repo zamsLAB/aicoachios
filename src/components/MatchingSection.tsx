@@ -264,19 +264,13 @@ export const MatchingSection: React.FC<MatchingSectionProps> = ({
                       className="flex-1 text-left flex items-center gap-3 cursor-pointer"
                     >
                       <div className="w-10 h-10 rounded-full bg-purple-50 border border-purple-200 flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
-                        {target.photo ? (
+                        {target.photo && (
                           <img 
                             src={target.photo} 
                             alt={target.name} 
                             className="w-full h-full object-cover"
                           />
-                        ) : (() => {
-                          const clean = (target.relationType || "").toLowerCase();
-                          if (clean.includes("친구") || clean.includes("찐친") || clean.includes("선배") || clean.includes("베프") || clean.includes("쌤") || clean.includes("friend") || clean.includes("best")) return "🏫";
-                          if (clean.includes("썸") || clean.includes("연인") || clean.includes("사랑") || clean.includes("남친") || clean.includes("여친") || clean.includes("내꺼") || clean.includes("커플") || clean.includes("애인") || clean.includes("love") || clean.includes("partner") || clean.includes("crush")) return "❤️";
-                          if (clean.includes("가족") || clean.includes("엄마") || clean.includes("아빠") || clean.includes("동생") || clean.includes("형") || clean.includes("누나") || clean.includes("언니") || clean.includes("오빠") || clean.includes("부모") || clean.includes("딸") || clean.includes("아들") || clean.includes("family")) return "🏠";
-                          return "🔮";
-                        })()}
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
