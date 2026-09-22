@@ -24,6 +24,8 @@ interface MatchingSectionProps {
   setMatchDay: (day: string) => void;
   matchRelation: string;
   setMatchRelation: (relation: string) => void;
+  matchPhoto?: string;
+  setMatchPhoto?: (photo: string) => void;
   onAddTarget: () => void;
   onDeleteTarget: (id: string, name: string) => void;
   setActiveMatchingTargetId: (id: string | null) => void;
@@ -52,6 +54,8 @@ export const MatchingSection: React.FC<MatchingSectionProps> = ({
   setMatchDay,
   matchRelation,
   setMatchRelation,
+  matchPhoto,
+  setMatchPhoto,
   onAddTarget,
   onDeleteTarget,
   setActiveMatchingTargetId,
@@ -93,6 +97,44 @@ export const MatchingSection: React.FC<MatchingSectionProps> = ({
         {isAddMatchOpen && (
           <div className="mt-4 pt-4 border-t border-purple-100 space-y-4 animate-fadeIn">
             <div className="space-y-3 bg-purple-50/50 border border-purple-200/60 rounded-2xl p-4">
+              
+              {/* 📸 스마트폰 사진 등록 영역 */}
+              <div className="flex flex-col items-center justify-center mb-2">
+                <input
+                  type="file"
+                  id="match-photo-upload"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setMatchPhoto?.(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="match-photo-upload"
+                  className="w-16 h-16 rounded-full bg-white border-2 border-dashed border-purple-300 flex flex-col items-center justify-center cursor-pointer overflow-hidden shadow-xs hover:border-purple-500 transition-all relative group"
+                >
+                  {matchPhoto ? (
+                    <img
+                      src={matchPhoto}
+                      alt="Match Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center text-purple-400 group-hover:text-purple-600">
+                      <Camera className="w-5 h-5 mb-0.5" />
+                      <span className="text-[8px] font-black">이미지 등록</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+
               <div>
                 <label className="block text-[9px] font-extrabold text-purple-800 mb-1 pl-1">{t.targetNameLabel}</label>
                 <input
@@ -221,8 +263,14 @@ export const MatchingSection: React.FC<MatchingSectionProps> = ({
                       }}
                       className="flex-1 text-left flex items-center gap-3 cursor-pointer"
                     >
-                      <div className="w-10 h-10 rounded-full bg-purple-50 border border-purple-200 flex items-center justify-center text-lg flex-shrink-0">
-                        {(() => {
+                      <div className="w-10 h-10 rounded-full bg-purple-50 border border-purple-200 flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
+                        {target.photo ? (
+                          <img 
+                            src={target.photo} 
+                            alt={target.name} 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (() => {
                           const clean = (target.relationType || "").toLowerCase();
                           if (clean.includes("친구") || clean.includes("찐친") || clean.includes("선배") || clean.includes("베프") || clean.includes("쌤") || clean.includes("friend") || clean.includes("best")) return "🏫";
                           if (clean.includes("썸") || clean.includes("연인") || clean.includes("사랑") || clean.includes("남친") || clean.includes("여친") || clean.includes("내꺼") || clean.includes("커플") || clean.includes("애인") || clean.includes("love") || clean.includes("partner") || clean.includes("crush")) return "❤️";

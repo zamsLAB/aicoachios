@@ -25,6 +25,7 @@ export interface MatchingTarget {
   birthdate: string; // YYYY-MM-DD
   birthTime: string; // Hour selection or "모름"
   relationType: string; // e.g. "친구", "연인", "가족" 등
+  photo?: string; // Base64 encoded image
 }
 
 export interface RecommendedItem {

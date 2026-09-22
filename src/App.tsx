@@ -133,6 +133,7 @@ export default function App() {
   const [matchMonth, setMatchMonth] = useState<string>("01");
   const [matchDay, setMatchDay] = useState<string>("01");
   const [matchRelation, setMatchRelation] = useState<string>("");
+  const [matchPhoto, setMatchPhoto] = useState<string>("");
   const [isAddMatchOpen, setIsAddMatchOpen] = useState<boolean>(false);
 
   // Calendar navigation
@@ -544,7 +545,8 @@ export default function App() {
       name: matchName.trim(),
       birthdate,
       birthTime: "모름",
-      relationType: matchRelation.trim()
+      relationType: matchRelation.trim(),
+      photo: matchPhoto
     };
 
     const executeAdd = () => {
@@ -557,6 +559,7 @@ export default function App() {
       setMatchYear("2000");
       setMatchMonth("01");
       setMatchDay("01");
+      setMatchPhoto("");
       showToast("새로운 인연이 추가되었습니다 🌟");
     };
 
@@ -704,55 +707,16 @@ export default function App() {
     const todayLog = diaryLogs.find(l => l.date === todayStr);
     const todayEmoticon = todayLog ? todayLog.emoticon : null;
 
-    let coachingData: CoachingResponse | null = null;
-
-    try {
-      const response = await apiFetch("/api/coaching", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: userProfile?.name,
-          birthdate: userProfile?.birthdate,
-          birthTime: userProfile?.birthTime,
-          gender: userProfile?.gender || "여자",
-          todayMood,
-          todayEmoticon, // Pass the emoticon to the server
-          history: diaryLogs.slice(-5), // Send last 5 logs for context
-          language
-        })
-      }, 5500);
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data && typeof data.conditionBattery === "number" && data.coachingComment) {
-          const isCrisis = data.isCrisis || isCrisisKeyword(todayMood);
-          const recommendations = getBatteryRecommendations(data.conditionBattery, userProfile?.gender || "HUMAN", todayMood);
-          coachingData = {
-            conditionBattery: data.conditionBattery,
-            coachingComment: data.coachingComment,
-            items: data.items && data.items.length > 0 ? data.items : recommendations.items,
-            places: data.places && data.places.length > 0 ? data.places : recommendations.places,
-            isCrisis,
-          };
-        }
-      }
-    } catch (err: any) {
-      console.warn("API coaching request unavailable, activating smart on-device coaching engine:", err);
-    }
-
-    // Seamless Local Smart Engine Fallback (guarantees personalized, warm, rich result without generic error text)
-    if (!coachingData) {
-      coachingData = generateSmartCoaching({
-        name: userProfile?.name,
-        birthdate: userProfile?.birthdate,
-        birthTime: userProfile?.birthTime,
-        gender: userProfile?.gender || "여자",
-        todayMood,
-        todayEmoticon,
-        history: diaryLogs,
-        language
-      });
-    }
+    let coachingData = generateSmartCoaching({
+      name: userProfile?.name,
+      birthdate: userProfile?.birthdate,
+      birthTime: userProfile?.birthTime,
+      gender: userProfile?.gender || "여자",
+      todayMood,
+      todayEmoticon,
+      history: diaryLogs,
+      language
+    });
 
     try {
       setCoachingResult(coachingData);
@@ -1044,6 +1008,8 @@ export default function App() {
                   setMatchDay={setMatchDay}
                   matchRelation={matchRelation}
                   setMatchRelation={setMatchRelation}
+                  matchPhoto={matchPhoto}
+                  setMatchPhoto={setMatchPhoto}
                   onAddTarget={handleAddMatchingTarget}
                   onDeleteTarget={handleDeleteMatchingTarget}
                   setActiveMatchingTargetId={setActiveMatchingTargetId}

@@ -127,18 +127,37 @@ export const AttendanceSection: React.FC<AttendanceSectionProps> = ({
 
   return (
     <div className="bg-white rounded-[32px] p-5 border border-purple-100 shadow-sm space-y-4 relative overflow-hidden">
-      {/* Celebration background glow on 5th day */}
+      {/* 5일 연속 출석 축하 세레모니 오버레이 */}
       {showCelebration && (
-        <div className="absolute inset-0 bg-gradient-to-tr from-amber-400/20 via-pink-400/20 to-purple-500/20 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center animate-fadeIn p-4 text-center">
-          <div className="w-16 h-16 bg-gradient-to-tr from-amber-400 to-yellow-300 text-slate-900 rounded-full flex items-center justify-center text-3xl shadow-xl animate-bounce mb-2">
-            
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-4 text-center overflow-hidden bg-slate-950/40 backdrop-blur-md animate-fadeIn">
+          
+          {/* 1. 금빛 가루 파티클 효과 (Sparkle Particles) */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-2 left-1/4 w-1.5 h-1.5 bg-amber-300 rounded-full animate-ping opacity-75" />
+            <div className="absolute top-1/3 right-1/4 w-2 h-2 bg-yellow-200 rounded-full animate-bounce duration-1000" />
+            <div className="absolute bottom-1/4 left-1/3 w-1 h-1 bg-amber-400 rounded-full animate-ping delay-300" />
+            <div className="absolute top-10 right-10 w-1.5 h-1.5 bg-amber-200 rounded-full animate-pulse" />
+            <div className="absolute bottom-10 left-10 w-2 h-2 bg-yellow-400 rounded-full animate-bounce delay-500" />
           </div>
-          <h3 className="text-base font-black text-purple-950">
-            {isEn ? "🌟5-Day Streak Complete!" : "🌟 5일 연속 출석 대성공!"}
-          </h3>
-          <p className="text-xs font-bold text-purple-700 mt-1">
-            {isEn ? "🏆+500P bonus!" : "🏆 500P 보너스!"}
-          </p>
+
+          {/* 2. 중앙 은은한 금빛 글로우 후광 */}
+          <div className="absolute w-40 h-40 bg-gradient-to-r from-amber-400/30 via-yellow-300/30 to-amber-500/30 rounded-full blur-2xl animate-pulse pointer-events-none" />
+
+          {/* 3. 보너스 포인트 메인 강렬 뱃지 카드 */}
+          <div className="relative z-10 flex flex-col items-center">
+            {/* 상단 럭셔리 뱃지 */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 backdrop-blur-md mb-2 shadow-sm">
+              <span className="text-xs">✨</span>
+              <span className="text-[11px] font-black tracking-wider text-amber-200 uppercase">
+                {isEn ? "5-Day Streak!" : "5일 연속 출석 달성!"}
+              </span>
+            </div>
+
+            {/* 메인 500P 타이틀 (금빛 그라데이션 & 드롭 섀도우) */}
+            <h3 className="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-500 drop-shadow-[0_4px_12px_rgba(245,158,11,0.5)] animate-pulse">
+              {isEn ? "🏆 +500P BONUS!" : "🏆 500P 보너스!"}
+            </h3>
+          </div>
         </div>
       )}
 
