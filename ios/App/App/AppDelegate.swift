@@ -1,14 +1,23 @@
 import UIKit
+import WebKit
 import Capacitor
 import UnityAds
-import WebKit
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate, UnityAdsInitializationDelegate, UnityAdsShowDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, UADSBannerViewDelegate, UnityAdsInitializationDelegate, UnityAdsLoadDelegate, UnityAdsShowDelegate {
 
     var window: UIWindow?
-    let gameId = "800365063" // 유니티 iOS Game ID (필요시 iOS용 ID 확인)
-    let testMode = true      // 출시 시 false로 변경
+    
+    // 유니티 대시보드 스크린샷 기준 ID 매칭
+    let gameId = "800380054" // iOS Game ID
+    let testMode = false      // 테스트 시 true
+    
+    let bannerPlacement = "Banner_ios"
+    let rewardedPlacement = "BP_Rewarded_iOS"
+    let interstitialPlacement = "BP_Interstitial_iOS"
+    
+    var currentBannerView: UADSBannerView?
+    var bridgeWebView: WKWebView?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         
@@ -18,81 +27,162 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UnityAdsInitializationDel
         return true
     }
 
-    // 2. 웹뷰에 JS Interface 연결 (웹뷰 로드 완료 시)
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesBegan(touches, with: event)
-        setupBridge()
-    }
-
-    private func setupBridge() {
-        guard let bridgeVC = window?.rootViewController as? CAPBridgeViewController,
-              let webView = bridgeVC.webView else { return }
+    // Capacitor 브릿지가 로드된 후 JS 브릿지 메시지 핸들러 등록
+    override func applicationDidBecomeActive(_ application: UIApplication) {
+        super.applicationDidBecomeActive(application)
         
-        let jsScript = """
-        window.UnityAdsBridge = {
-            showRewardedAd: function() {
-                window.webkit.messageHandlers.showRewarded.postMessage(null);
-            },
-            showInterstitialAd: function() {
-                window.webkit.messageHandlers.showInterstitial.postMessage(null);
+        if let rootViewController = self.window?.rootViewController as? CAPBridgeViewController {
+            if self.bridgeWebView == nil {
+                self.bridgeWebView = rootViewController.webView
+                
+                // JavaScript(window.webkit.messageHandlers) 호출 핸들러 등록
+                let userContentController = rootViewController.webView?.configuration.userContentController
+                userContentController?.removeScriptMessageHandler(forName: "showBannerAd")
+                userContentController?.removeScriptMessageHandler(forName: "hideBannerAd")
+                userContentController?.removeScriptMessageHandler(forName: "showRewardedAd")
+                userContentController?.removeScriptMessageHandler(forName: "showInterstitialAd")
+
+                userContentController?.add(self, name: "showBannerAd")
+                userContentController?.add(self, name: "hideBannerAd")
+                userContentController?.add(self, name: "showRewardedAd")
+                userContentController?.add(self, name: "showInterstitialAd")
             }
-        };
-        """
-        webView.evaluateJavaScript(jsScript, completionHandler: nil)
+        }
     }
 
-    // --- Unity Ads Delegate 콜백 ---
+    // MARK: - WKScriptMessageHandler (JS에서 호출한 메세지 처리)
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        switch message.name {
+        case "showBannerAd":
+            showBannerAd()
+        case "hideBannerAd":
+            hideBannerAd()
+        case "showRewardedAd":
+            showRewardedAd()
+        case "showInterstitialAd":
+            showInterstitialAd()
+        default:
+            break
+        }
+    }
+
+    // MARK: - Unity Ads Initialization Delegate
     func initializationComplete() {
-        print("Unity Ads iOS Initialized successfully")
-        UnityAds.load("Rewarded_iOS")
-        UnityAds.load("Interstitial_iOS")
+        print("Unity Ads initialized successfully in iOS Native")
+        loadAds()
     }
 
-    func initializationFailed(_ error: UnityAdsInitializationError, message: String) {
-        print("Unity Ads iOS Init Failed: \(message)")
+    func initializationFailed(_ error: UnityAdsInitializationError, withMessage message: String) {
+        print("Unity Ads initialization failed: \(error) - \(message)")
+    }
+
+    func loadAds() {
+        UnityAds.load(rewardedPlacement, loadDelegate: self)
+        UnityAds.load(interstitialPlacement, loadDelegate: self)
+    }
+
+    // MARK: - Unity Ads Load Delegate
+    func onUnityAdsAdLoaded(_ placementId: String) {
+        print("Unity ad loaded successfully: \(placementId)")
+    }
+
+    func onUnityAdsFailedToLoad(_ placementId: String, error: UnityAdsLoadError, message: String) {
+        print("Unity ad load failed: \(error) - \(message)")
+    }
+
+    // MARK: - Unity Ads Show Delegate
+    func onUnityAdsShowComplete(_ placementId: String, showCompletionState: UnityAdsShowCompletionState) {
+        print("Unity ad complete: \(placementId)")
+        if placementId == rewardedPlacement {
+            evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityRewardCompleted'));")
+        } else if placementId == interstitialPlacement {
+            evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityInterstitialCompleted'));")
+        }
+    }
+
+    func onUnityAdsShowFailure(_ placementId: String, error: UnityAdsShowError, message: String) {
+        print("Unity ad show failed: \(error) - \(message)")
+        evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityAdFailed', { detail: '\(message)' }));")
+    }
+
+    func onUnityAdsShowStart(_ placementId: String) {
+        print("Unity ad show start: \(placementId)")
+    }
+
+    func onUnityAdsShowClick(_ placementId: String) {
+        print("Unity ad clicked: \(placementId)")
+    }
+
+    // MARK: - JavaScript 통신용 헬퍼 함수
+    func evaluateJS(script: String) {
+        DispatchQueue.main.async {
+            if let rootVC = self.window?.rootViewController as? CAPBridgeViewController {
+                rootVC.webView?.evaluateJavaScript(script, completionHandler: nil)
+            }
+        }
     }
     
-    func unityAdsShowComplete(_ placementId: String, withFinishState state: UnityAdsShowCompletionState) {
-        guard let bridgeVC = window?.rootViewController as? CAPBridgeViewController else { return }
-        bridgeVC.webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('unityRewardCompleted'));", completionHandler: nil)
-    }
-    
-    func unityAdsShowFailed(_ placementId: String, withError error: UnityAdsShowError, message: String) {
-        guard let bridgeVC = window?.rootViewController as? CAPBridgeViewController else { return }
-        bridgeVC.webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('unityAdFailed'));", completionHandler: nil)
-    }
-    
-    func unityAdsShowStart(_ placementId: String) {}
-    func unityAdsShowClick(_ placementId: String) {}
-
-    func applicationWillResignActive(_ application: UIApplication) {
-        // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-        // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
-    }
-
-    func applicationDidEnterBackground(_ application: UIApplication) {
-        // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
-        // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
-    }
-
-    func applicationWillEnterForeground(_ application: UIApplication) {
-        // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
-    }
-
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+    // MARK: - 네이티브 광고 제어 함수
+    @objc public func showBannerAd() {
+        DispatchQueue.main.async {
+            guard let rootVC = self.window?.rootViewController else { return }
+            
+            // 기존 배너 제거
+            self.currentBannerView?.removeFromSuperview()
+            
+            // 새 배너 생성
+            let banner = UADSBannerView(placementId: self.bannerPlacement, size: CGSize(width: 320, height: 50))
+            banner.delegate = self
+            
+            // 하단 중앙 배치 제약 조건 설정
+            banner.translatesAutoresizingMaskIntoConstraints = false
+            rootVC.view.addSubview(banner)
+            
+            NSLayoutConstraint.activate([
+                banner.centerXAnchor.constraint(equalTo: rootVC.view.centerXAnchor),
+                banner.bottomAnchor.constraint(equalTo: rootVC.view.safeAreaLayoutGuide.bottomAnchor)
+            ])
+            
+            banner.load()
+            self.currentBannerView = banner
+        }
     }
 
-    func applicationWillTerminate(_ application: UIApplication) {
-        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+    @objc public func hideBannerAd() {
+        DispatchQueue.main.async {
+            self.currentBannerView?.removeFromSuperview()
+            self.currentBannerView = nil
+        }
     }
 
-    func application(_ application: UIApplication,
-                     configurationForConnecting connectingSceneSession: UISceneSession,
-                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
-        let config = UISceneConfiguration(name: "Default Configuration",
-                                          sessionRole: connectingSceneSession.role)
-        config.delegateClass = SceneDelegate.self
-        return config
+    @objc public func showRewardedAd() {
+        DispatchQueue.main.async {
+            guard let rootVC = self.window?.rootViewController else { return }
+            UnityAds.show(rootVC, placementId: self.rewardedPlacement, showDelegate: self)
+        }
+    }
+
+    @objc public func showInterstitialAd() {
+        DispatchQueue.main.async {
+            guard let rootVC = self.window?.rootViewController else { return }
+            UnityAds.show(rootVC, placementId: self.interstitialPlacement, showDelegate: self)
+        }
+    }
+
+    // MARK: - UADSBannerViewDelegate
+    func bannerViewDidLoad(_ bannerView: UADSBannerView) {
+        print("iOS Unity Banner Loaded Successfully")
+    }
+
+    func bannerViewDidClick(_ bannerView: UADSBannerView) {
+        print("iOS Unity Banner Clicked")
+    }
+
+    func bannerViewDidLeaveApplication(_ bannerView: UADSBannerView) {
+        print("iOS Unity Banner Left Application")
+    }
+
+    func bannerViewDidError(_ bannerView: UADSBannerView, error: UADSBannerError) {
+        print("iOS Unity Banner Load Error: \(error.localizedDescription)")
     }
 }

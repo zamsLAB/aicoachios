@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ADMOB_CONFIG } from "../config/admob";
 import { AnalyticsEvents } from "../utils/analytics";
 
 export type AdKind = "interstitial" | "rewarded";
@@ -9,6 +8,62 @@ export type AdPurpose =
   | "interstitial_coaching" // Today condition analysis
   | "interstitial_profile"  // Edit profile button click
   | null;
+
+const showNativeUnityAd = (
+  type: "rewarded" | "interstitial",
+  onComplete: () => void,
+  onError: (msg: string) => void
+) => {
+  const win = window as any;
+  const isNative = win?.Capacitor?.isNativePlatform?.();
+  
+  if (isNative && (win.UnityAdsBridge || win.webkit?.messageHandlers)) {
+    const completeEvent = type === "rewarded" ? "unityRewardCompleted" : "unityInterstitialCompleted";
+    
+    const handleComplete = () => {
+      cleanup();
+      onComplete();
+    };
+    
+    const handleFail = (e: any) => {
+      cleanup();
+      onError(e.detail || "Unity Ad failed");
+    };
+
+    const cleanup = () => {
+      window.removeEventListener(completeEvent, handleComplete);
+      window.removeEventListener("unityAdFailed", handleFail);
+    };
+
+    window.addEventListener(completeEvent, handleComplete);
+    window.addEventListener("unityAdFailed", handleFail);
+
+    try {
+      if (type === "rewarded") {
+        if (win.UnityAdsBridge?.showRewardedAd) {
+          win.UnityAdsBridge.showRewardedAd();
+        } else if (win.webkit?.messageHandlers?.showRewardedAd) {
+          win.webkit.messageHandlers.showRewardedAd.postMessage(null);
+        } else {
+          throw new Error("No rewarded ad bridge");
+        }
+      } else {
+        if (win.UnityAdsBridge?.showInterstitialAd) {
+          win.UnityAdsBridge.showInterstitialAd();
+        } else if (win.webkit?.messageHandlers?.showInterstitialAd) {
+          win.webkit.messageHandlers.showInterstitialAd.postMessage(null);
+        } else {
+          throw new Error("No interstitial ad bridge");
+        }
+      }
+    } catch (err: any) {
+      cleanup();
+      onError(err.message || String(err));
+    }
+  } else {
+    onError("No Native Unity Bridge");
+  }
+};
 
 interface UseAdPlayerProps {
   userPoints: number;
@@ -44,63 +99,33 @@ export function useAdPlayer({ userPoints, updatePoints, showToast, runCoachingAn
       callback();
     }
 
-    // Check if running on native Capacitor Android with AdMob plugin
-    const win = window as any;
-    try {
-      if (win?.Capacitor?.isNativePlatform && win.Capacitor.isNativePlatform() && win?.Capacitor?.Plugins?.AdMob) {
-        const AdMob = win.Capacitor.Plugins.AdMob;
-        if (isRewarded) {
-          AdMob.prepareRewardVideoAd({
-            adId: ADMOB_CONFIG.REWARDED_AD_UNIT_ID,
-          })
-            .then(() => AdMob.showRewardVideoAd())
-            .then((reward: any) => {
-              setIsWatchingAd(false);
-              setAdPurpose(null);
+    // Check if running on native platform to use Unity Ads
+    showNativeUnityAd(
+      kind,
+      () => {
+        // onComplete
+        setIsWatchingAd(false);
+        setAdPurpose(null);
 
-              if (purpose === "rewarded_points") {
-                const currentPts = parseInt(localStorage.getItem("coaching_user_points") || "0") || userPoints;
-                const newPts = currentPts + 100;
-                updatePoints(newPts);
-                AnalyticsEvents.REWARD_EARNED(100, newPts);
-                showToast("100P가 성공적으로 적립되었습니다! 🪙");
-              }
-              if (callback && !shouldProceedImmediately) callback();
-            })
-            .catch((err: any) => {
-              console.warn("Native rewarded ad fallback to web player:", err);
-              runWebSimulation(purpose, kind, initialSeconds, callback);
-            });
-          return;
-        } else {
-          AdMob.prepareInterstitial({
-            adId: ADMOB_CONFIG.INTERSTITIAL_AD_UNIT_ID,
-          })
-            .then(() => AdMob.showInterstitial())
-            .then(() => {
-              setIsWatchingAd(false);
-              setAdPurpose(null);
-
-              if (shouldProceedImmediately) return;
-              if (purpose === "interstitial_coaching" && runCoachingAnalysis) {
-                runCoachingAnalysis();
-              } else if (callback) {
-                callback();
-              }
-            })
-            .catch((err: any) => {
-              console.warn("Native interstitial fallback to web player:", err);
-              runWebSimulation(purpose, kind, initialSeconds, callback);
-            });
-          return;
+        if (purpose === "rewarded_points") {
+          const currentPts = parseInt(localStorage.getItem("coaching_user_points") || "0") || userPoints;
+          const newPts = currentPts + 100;
+          updatePoints(newPts);
+          AnalyticsEvents.REWARD_EARNED(100, newPts);
+          showToast("100P가 성공적으로 적립되었습니다! 🪙");
         }
+        if (!shouldProceedImmediately && callback) {
+          callback();
+        } else if (purpose === "interstitial_coaching" && runCoachingAnalysis) {
+          runCoachingAnalysis();
+        }
+      },
+      (errMsg) => {
+        // onError fallback
+        console.warn("Native Unity ad fallback to web player:", errMsg);
+        runWebSimulation(purpose, kind, initialSeconds, callback, shouldProceedImmediately);
       }
-    } catch (nativeErr) {
-      console.warn("Native AdMob check failed safely:", nativeErr);
-    }
-
-    // Default Web & Preview Player
-    runWebSimulation(purpose, kind, initialSeconds, callback, shouldProceedImmediately);
+    );
   };
 
   const runWebSimulation = (

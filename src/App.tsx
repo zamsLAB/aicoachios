@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { Battery, Heart, User, Calendar } from "lucide-react";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import { AdMob } from "@capacitor-community/admob";
 import { UserProfile, DiaryLog, CoachingResponse, EmoticonType, MatchingTarget } from "./types";
 import { calculateBiorhythm } from "./utils/biorhythm";
 import { analyzeMatching } from "./utils/matching";
@@ -20,7 +19,6 @@ import { LoginSection } from "./components/LoginSection";
 import { OnboardingSection } from "./components/OnboardingSection";
 import { EmojiRecordModal } from "./components/EmojiRecordModal";
 import { ResetConfirmModal } from "./components/ResetConfirmModal";
-import { ADMOB_CONFIG } from "./config/admob";
 import { AnalyticsEvents } from "./utils/analytics";
 import { requestNotificationPermission, sendPushNotification } from "./utils/notification";
 import { getApiBaseUrl, apiFetch } from "./utils/apiConfig";
@@ -155,24 +153,8 @@ export default function App() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
-    const initializeAdMob = async () => {
-      try {
-        await AdMob.requestTrackingAuthorization();
-      } catch (error) {
-        console.warn("ATT authorization request failed:", error);
-      }
-
-      try {
-        await AdMob.initialize({
-          initializeForTesting: ADMOB_CONFIG.IS_TEST_MODE,
-          testingDevices: ADMOB_CONFIG.TEST_DEVICE_IDS,
-        });
-      } catch (error) {
-        console.warn("AdMob initialization failed:", error);
-      }
-    };
-
-    void initializeAdMob();
+    // ATT authorization (if using external plugins for it or just let iOS handle it)
+    // Unity Ads initialization happens on Native side now (AppDelegate / MainActivity)
   }, []);
 
   useEffect(() => {
@@ -300,20 +282,25 @@ export default function App() {
     setCurrentMonth(now.getMonth());
   }, []);
 
-  // Ensure native AdMob banner is hidden when no signed-in profile is visible.
+  // Ensure native Unity banner is shown/hidden based on sign-in profile.
   useEffect(() => {
     const win = window as any;
     const shouldShow = isLoggedIn && !!userProfile;
+    const isNative = win?.Capacitor?.isNativePlatform?.();
 
-    if (!shouldShow) {
-      try {
-        if (win?.Capacitor?.isNativePlatform && win.Capacitor.isNativePlatform()) {
-          if (win?.Capacitor?.Plugins?.AdMob?.hideBanner) {
-            win.Capacitor.Plugins.AdMob.hideBanner().catch(() => {});
-          }
+    if (isNative) {
+      if (shouldShow) {
+        if (win.UnityAdsBridge?.showBannerAd) {
+          win.UnityAdsBridge.showBannerAd();
+        } else if (win.webkit?.messageHandlers?.showBannerAd) {
+          win.webkit.messageHandlers.showBannerAd.postMessage(null);
         }
-      } catch (e) {
-        // ignore
+      } else {
+        if (win.UnityAdsBridge?.hideBannerAd) {
+          win.UnityAdsBridge.hideBannerAd();
+        } else if (win.webkit?.messageHandlers?.hideBannerAd) {
+          win.webkit.messageHandlers.hideBannerAd.postMessage(null);
+        }
       }
     }
   }, [isLoggedIn, userProfile]);
