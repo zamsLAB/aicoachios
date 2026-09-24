@@ -13,4 +13,10 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/
 
-
+# Unity & Visual Studio
+Library/
+UserSettings/
+.vs/
+.vsconfig
+*.csproj
+*.slnx
