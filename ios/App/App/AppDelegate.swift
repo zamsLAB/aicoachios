@@ -76,6 +76,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
         print("Unity Ads initialization failed: \(error) - \(message)")
     }
 
+    // 광고 재로드 함수
     func loadAds() {
         UnityAds.load(rewardedPlacement, loadDelegate: self)
         UnityAds.load(interstitialPlacement, loadDelegate: self)
@@ -93,6 +94,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
     // MARK: - Unity Ads Show Delegate
     func onUnityAdsShowComplete(_ placementId: String, showCompletionState: UnityAdsShowCompletionState) {
         print("Unity ad complete: \(placementId)")
+        
+        // 🔥 중요: 시청 완료 후 다음 광고 미리 재로드!
+        loadAds()
+        
         if placementId == rewardedPlacement {
             evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityRewardCompleted'));")
         } else if placementId == interstitialPlacement {
@@ -102,6 +107,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
 
     func onUnityAdsShowFailure(_ placementId: String, error: UnityAdsShowError, message: String) {
         print("Unity ad show failed: \(error) - \(message)")
+        
+        // 🔥 중요: 광고 표시 실패 시에도 다음 광고 미리 재로드!
+        loadAds()
+        
         evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityAdFailed', { detail: '\(message)' }));")
     }
 
@@ -137,6 +146,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
             // 하단 중앙 배치 제약 조건 설정
             banner.translatesAutoresizingMaskIntoConstraints = false
             rootVC.view.addSubview(banner)
+            rootVC.view.bringSubviewToFront(banner) // 🔥 웹뷰 레이어 뒤로 숨김 방지
             
             NSLayoutConstraint.activate([
                 banner.centerXAnchor.constraint(equalTo: rootVC.view.centerXAnchor),
