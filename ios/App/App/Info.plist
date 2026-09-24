@@ -134,9 +134,10 @@
         </dict>
     </array>
     <key>GADApplicationIdentifier</key>
-    <string>ca-app-pub-6698738823810950~3272912009</string>
+    <!-- 29일간 정지 기간 동안 구글 공식 iOS 테스트 App ID 적용 -->
+    <string>ca-app-pub-3940256099942544~1458002511</string>
     <key>NSUserTrackingUsageDescription</key>
-    <string>맞춤 콘텐츠 및 광고 제공, 개인화된 서비스 추천을 위해 권한이 필요합니다.</string>
+    <string>맞춤형 광고 제공 및 서비스 개선을 위해 권한이 필요합니다.</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <true/>
 </dict>

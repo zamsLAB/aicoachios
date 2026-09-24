@@ -1,14 +1,69 @@
 import UIKit
 import Capacitor
+import UnityAds
+import WebKit
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UnityAdsInitializationDelegate, UnityAdsShowDelegate {
 
     var window: UIWindow?
+    let gameId = "800365063" // 유니티 iOS Game ID (필요시 iOS용 ID 확인)
+    let testMode = true      // 출시 시 false로 변경
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        
+        // 1. Unity Ads SDK 초기화
+        UnityAds.initialize(gameId, testMode: testMode, initializationDelegate: self)
+        
         return true
     }
+
+    // 2. 웹뷰에 JS Interface 연결 (웹뷰 로드 완료 시)
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesBegan(touches, with: event)
+        setupBridge()
+    }
+
+    private func setupBridge() {
+        guard let bridgeVC = window?.rootViewController as? CAPBridgeViewController,
+              let webView = bridgeVC.webView else { return }
+        
+        let jsScript = """
+        window.UnityAdsBridge = {
+            showRewardedAd: function() {
+                window.webkit.messageHandlers.showRewarded.postMessage(null);
+            },
+            showInterstitialAd: function() {
+                window.webkit.messageHandlers.showInterstitial.postMessage(null);
+            }
+        };
+        """
+        webView.evaluateJavaScript(jsScript, completionHandler: nil)
+    }
+
+    // --- Unity Ads Delegate 콜백 ---
+    func initializationComplete() {
+        print("Unity Ads iOS Initialized successfully")
+        UnityAds.load("Rewarded_iOS")
+        UnityAds.load("Interstitial_iOS")
+    }
+
+    func initializationFailed(_ error: UnityAdsInitializationError, message: String) {
+        print("Unity Ads iOS Init Failed: \(message)")
+    }
+    
+    func unityAdsShowComplete(_ placementId: String, withFinishState state: UnityAdsShowCompletionState) {
+        guard let bridgeVC = window?.rootViewController as? CAPBridgeViewController else { return }
+        bridgeVC.webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('unityRewardCompleted'));", completionHandler: nil)
+    }
+    
+    func unityAdsShowFailed(_ placementId: String, withError error: UnityAdsShowError, message: String) {
+        guard let bridgeVC = window?.rootViewController as? CAPBridgeViewController else { return }
+        bridgeVC.webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('unityAdFailed'));", completionHandler: nil)
+    }
+    
+    func unityAdsShowStart(_ placementId: String) {}
+    func unityAdsShowClick(_ placementId: String) {}
 
     func applicationWillResignActive(_ application: UIApplication) {
         // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
