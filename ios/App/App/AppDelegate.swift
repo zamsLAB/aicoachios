@@ -90,24 +90,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
     }
 
     // MARK: - Unity Ads Load Delegate (Protocol Conformance)
-    func onUnityAdsAdLoaded(_ placementId: String) {
+    func unityAdsAdLoaded(_ placementId: String) {
         print("Unity ad loaded successfully: \(placementId)")
     }
 
-    func onUnityAdsFailedToLoad(_ placementId: String, error: UnityAdsLoadError, message: String) {
+    func unityAdsAdFailed(toLoad placementId: String, withError error: UnityAdsLoadError, withMessage message: String) {
         print("Unity ad load failed: \(placementId) - \(error) - \(message)")
     }
 
     // MARK: - Unity Ads Show Delegate (Protocol Conformance)
-    func onUnityAdsShowStart(_ placementId: String) {
+    func unityAdsShowStart(_ placementId: String) {
         print("Unity ad show start: \(placementId)")
     }
 
-    func onUnityAdsShowClick(_ placementId: String) {
+    func unityAdsShowClick(_ placementId: String) {
         print("Unity ad clicked: \(placementId)")
     }
 
-    func onUnityAdsShowComplete(_ placementId: String, showCompletionState state: UnityAdsShowCompletionState) {
+    func unityAdsShowComplete(_ placementId: String, withFinish state: UnityAdsShowCompletionState) {
         print("Unity ad complete: \(placementId) state: \(state)")
         loadAds()
         
@@ -118,7 +118,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
         }
     }
 
-    func onUnityAdsShowFailure(_ placementId: String, error: UnityAdsShowError, message: String) {
+    func unityAdsShowFailed(_ placementId: String, withError error: UnityAdsShowError, withMessage message: String) {
         print("Unity ad show failed: \(placementId) - \(error) - \(message)")
         loadAds()
         evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityAdFailed', { detail: '\(message)' }));")
@@ -175,28 +175,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
         }
     }
 
-// MARK: - Unity Ads Show Delegate (Protocol Conformance)
-    func onUnityAdsShowStart(_ placementId: String) {
-        print("Unity ad show start: \(placementId)")
+    // MARK: - UADSBannerViewDelegate
+    func bannerViewDidLoad(_ bannerView: UADSBannerView) {
+        print("iOS Unity Banner Loaded Successfully")
     }
 
-    func onUnityAdsShowClick(_ placementId: String) {
-        print("Unity ad clicked: \(placementId)")
+    func bannerViewDidClick(_ bannerView: UADSBannerView) {
+        print("iOS Unity Banner Clicked")
     }
 
-    func onUnityAdsShowComplete(_ placementId: String, showCompletionState state: UnityAdsShowCompletionState) {
-        print("Unity ad complete: \(placementId) state: \(state)")
-        loadAds()
-        
-        if placementId == rewardedPlacement {
-            evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityRewardCompleted'));")
-        } else if placementId == interstitialPlacement {
-            evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityInterstitialCompleted'));")
-        }
+    func bannerViewDidLeaveApplication(_ bannerView: UADSBannerView) {
+        print("iOS Unity Banner Left Application")
     }
 
-    func onUnityAdsShowFailure(_ placementId: String, error: UnityAdsShowError, message: String) {
-        print("Unity ad show failed: \(placementId) - \(error) - \(message)")
-        loadAds()
-        evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityAdFailed', { detail: '\(message)' }));")
+    func bannerViewDidError(_ bannerView: UADSBannerView, error: UADSBannerError) {
+        print("iOS Unity Banner Load Error: \(error.localizedDescription)")
     }
+}
