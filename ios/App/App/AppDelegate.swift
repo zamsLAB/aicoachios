@@ -27,15 +27,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
         return true
     }
 
-    // Capacitor 브릿지가 로드된 후 JS 브릿지 메시지 핸들러 등록
-    override func applicationDidBecomeActive(_ application: UIApplication) {
-        super.applicationDidBecomeActive(application)
-        
+    // Capacitor 브릿지 로드 및 JS 메시지 핸들러 등록
+    func applicationDidBecomeActive(_ application: UIApplication) {
         if let rootViewController = self.window?.rootViewController as? CAPBridgeViewController {
             if self.bridgeWebView == nil {
                 self.bridgeWebView = rootViewController.webView
                 
-                // JavaScript(window.webkit.messageHandlers) 호출 핸들러 등록
                 let userContentController = rootViewController.webView?.configuration.userContentController
                 userContentController?.removeScriptMessageHandler(forName: "showBannerAd")
                 userContentController?.removeScriptMessageHandler(forName: "hideBannerAd")
@@ -46,11 +43,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
                 userContentController?.add(self, name: "hideBannerAd")
                 userContentController?.add(self, name: "showRewardedAd")
                 userContentController?.add(self, name: "showInterstitialAd")
+
+                // 안드로이드 UnityAdsBridge 호환용 JS 인터페이스 등록
+                let initScript = WKUserScript(source: """
+                    window.UnityAdsBridge = {
+                        showBannerAd: function() { window.webkit.messageHandlers.showBannerAd.postMessage(null); },
+                        hideBannerAd: function() { window.webkit.messageHandlers.hideBannerAd.postMessage(null); },
+                        showRewardedAd: function() { window.webkit.messageHandlers.showRewardedAd.postMessage(null); },
+                        showInterstitialAd: function() { window.webkit.messageHandlers.showInterstitialAd.postMessage(null); }
+                    };
+                """, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+                userContentController?.addUserScript(initScript)
             }
         }
     }
 
-    // MARK: - WKScriptMessageHandler (JS에서 호출한 메세지 처리)
+    // MARK: - WKScriptMessageHandler
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         switch message.name {
         case "showBannerAd":
@@ -76,26 +84,31 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
         print("Unity Ads initialization failed: \(error) - \(message)")
     }
 
-    // 광고 재로드 함수
     func loadAds() {
         UnityAds.load(rewardedPlacement, loadDelegate: self)
         UnityAds.load(interstitialPlacement, loadDelegate: self)
     }
 
-    // MARK: - Unity Ads Load Delegate
+    // MARK: - Unity Ads Load Delegate (Protocol Conformance)
     func onUnityAdsAdLoaded(_ placementId: String) {
         print("Unity ad loaded successfully: \(placementId)")
     }
 
     func onUnityAdsFailedToLoad(_ placementId: String, error: UnityAdsLoadError, message: String) {
-        print("Unity ad load failed: \(error) - \(message)")
+        print("Unity ad load failed: \(placementId) - \(error) - \(message)")
     }
 
-    // MARK: - Unity Ads Show Delegate
-    func onUnityAdsShowComplete(_ placementId: String, showCompletionState: UnityAdsShowCompletionState) {
-        print("Unity ad complete: \(placementId)")
-        
-        // 🔥 중요: 시청 완료 후 다음 광고 미리 재로드!
+    // MARK: - Unity Ads Show Delegate (Protocol Conformance)
+    func onUnityAdsShowStart(_ placementId: String) {
+        print("Unity ad show start: \(placementId)")
+    }
+
+    func onUnityAdsShowClick(_ placementId: String) {
+        print("Unity ad clicked: \(placementId)")
+    }
+
+    func onUnityAdsShowComplete(_ placementId: String, showCompletionState state: UnityAdsShowCompletionState) {
+        print("Unity ad complete: \(placementId) state: \(state)")
         loadAds()
         
         if placementId == rewardedPlacement {
@@ -106,23 +119,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
     }
 
     func onUnityAdsShowFailure(_ placementId: String, error: UnityAdsShowError, message: String) {
-        print("Unity ad show failed: \(error) - \(message)")
-        
-        // 🔥 중요: 광고 표시 실패 시에도 다음 광고 미리 재로드!
+        print("Unity ad show failed: \(placementId) - \(error) - \(message)")
         loadAds()
-        
         evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityAdFailed', { detail: '\(message)' }));")
     }
 
-    func onUnityAdsShowStart(_ placementId: String) {
-        print("Unity ad show start: \(placementId)")
-    }
-
-    func onUnityAdsShowClick(_ placementId: String) {
-        print("Unity ad clicked: \(placementId)")
-    }
-
-    // MARK: - JavaScript 통신용 헬퍼 함수
+    // MARK: - Helper & Native Ad Functions
     func evaluateJS(script: String) {
         DispatchQueue.main.async {
             if let rootVC = self.window?.rootViewController as? CAPBridgeViewController {
@@ -131,22 +133,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
         }
     }
     
-    // MARK: - 네이티브 광고 제어 함수
     @objc public func showBannerAd() {
         DispatchQueue.main.async {
             guard let rootVC = self.window?.rootViewController else { return }
-            
-            // 기존 배너 제거
             self.currentBannerView?.removeFromSuperview()
             
-            // 새 배너 생성
             let banner = UADSBannerView(placementId: self.bannerPlacement, size: CGSize(width: 320, height: 50))
             banner.delegate = self
-            
-            // 하단 중앙 배치 제약 조건 설정
             banner.translatesAutoresizingMaskIntoConstraints = false
             rootVC.view.addSubview(banner)
-            rootVC.view.bringSubviewToFront(banner) // 🔥 웹뷰 레이어 뒤로 숨김 방지
+            rootVC.view.bringSubviewToFront(banner)
             
             NSLayoutConstraint.activate([
                 banner.centerXAnchor.constraint(equalTo: rootVC.view.centerXAnchor),
