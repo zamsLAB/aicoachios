@@ -2,6 +2,7 @@ import UIKit
 import WebKit
 import Capacitor
 import UnityAds
+import FirebaseCore
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, UADSBannerViewDelegate, UnityAdsInitializationDelegate, UnityAdsLoadDelegate, UnityAdsShowDelegate {
@@ -20,6 +21,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
     var bridgeWebView: WKWebView?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        
+        // Firebase 초기화
+        FirebaseApp.configure()
         
         // 1. Unity Ads SDK 초기화
         UnityAds.initialize(gameId, testMode: testMode, initializationDelegate: self)
