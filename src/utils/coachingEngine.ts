@@ -66,37 +66,84 @@ function buildMoodSpecificComment(name: string, finalBattery: number, moodText: 
   const safeMood = moodText.trim() || (isEn ? "today's mood" : "오늘의 기분");
   const moodState = getMoodExpressionState(moodText);
 
+  // 배터리 구간 분류 (높음, 보통, 낮음)
+  const isHighBattery = finalBattery >= 75;
+  const isLowBattery = finalBattery < 40;
+
   if (isEn) {
-    switch (moodState) {
-      case "distress":
-        return `${name}, your battery is ${finalBattery}% today. 🔋 You wrote '${safeMood}', and it sounds like your body and mind are carrying a lot right now. A gentle reset—warm tea, a short rest, and a little comfort without pressure—would help you feel more grounded. You do not have to carry this alone today. 💛`;
-      case "stress":
-        return `${name}, your battery is ${finalBattery}% today. 🔋 '${safeMood}' suggests a tense rhythm. It is okay to pause, breathe, and clear the air before moving again. A short break can reset your energy and bring your focus back. 🌿`;
-      case "positive":
-        return `${name}, your battery is ${finalBattery}% today. 🔋 The feeling of '${safeMood}' is a strong sign that your energy is flowing well. Keep that momentum going with small joys, light movement, and a little celebration for yourself. ✨`;
-      case "recovery":
-        return `${name}, your battery is ${finalBattery}% today. 🔋 '${safeMood}' sounds like you are recovering and re-centering. Keep the pace gentle and let your routine support a steady comeback instead of pushing too hard. 🌱`;
-      case "productive":
-        return `${name}, your battery is ${finalBattery}% today. 🔋 '${safeMood}' suggests real momentum and focus. Use that clarity to tackle the next step in short, efficient moves and protect your energy with a proper pause. ⚡`;
-      default:
-        return `${name}, your battery is ${finalBattery}% today. 🔋 Even with '${safeMood}', your rhythm can still feel balanced. Take one mindful breath, choose a calm action, and let the day move gently. 💖`;
-    }
+    const enTemplates: Record<string, string[]> = {
+      distress: [
+        `${name}, your battery is ${finalBattery}% today. 🔋 You wrote '${safeMood}', and it sounds like your body and mind are carrying a lot right now. A gentle reset—warm tea, a short rest, and a little comfort without pressure—would help you feel more grounded. You do not have to carry this alone today. 💛`,
+        `${name}, today your battery stands at ${finalBattery}%. 🔋 Expressing '${safeMood}' shows how exhausted you feel. Please set aside heavy tasks and take time to wrap yourself in warmth and deep rest today. 🌿`,
+        `${name}, your energy is at ${finalBattery}% today. 🔋 Sharing '${safeMood}' means your heart needs gentle care. Be extra kind to yourself, slow everything down, and rest as much as you need. 💛`
+      ],
+      stress: [
+        `${name}, your battery is ${finalBattery}% today. 🔋 '${safeMood}' suggests a tense rhythm. It is okay to pause, breathe, and clear the air before moving again. A short break can reset your energy and bring your focus back. 🌿`,
+        `${name}, battery level is ${finalBattery}% today. 🔋 Feeling '${safeMood}' indicates built-up tension. Step away for a moment, stretch, and let go of the pressure. Breathing space will restore your calm. 🍃`,
+        `${name}, you are at ${finalBattery}% battery today. 🔋 When you express '${safeMood}', it's a sign to step back. Don't force solutions right now—give yourself time to exhale and regain clarity. ✨`
+      ],
+      positive: [
+        `${name}, your battery is ${finalBattery}% today. 🔋 The feeling of '${safeMood}' is a strong sign that your energy is flowing well. Keep that momentum going with small joys, light movement, and a little celebration for yourself. ✨`,
+        `${name}, impressive ${finalBattery}% battery today! 🔋 With '${safeMood}', your positive vibe is shining bright. Enjoy this wonderful momentum and share your good energy around! 🌟`,
+        `${name}, your battery is glowing at ${finalBattery}%! 🔋 '${safeMood}' reflects great harmony today. Make the most of this vibrant feeling by indulging in what you love most. 🎉`
+      ],
+      recovery: [
+        `${name}, your battery is ${finalBattery}% today. 🔋 '${safeMood}' sounds like you are recovering and re-centering. Keep the pace gentle and let your routine support a steady comeback instead of pushing too hard. 🌱`,
+        `${name}, today's battery is ${finalBattery}%. 🔋 '${safeMood}' shows you are stepping into a soothing recovery phase. Take things slow and enjoy a peaceful, rejuvenating day. 🍵`,
+        `${name}, you are at ${finalBattery}% battery today. 🔋 Feeling '${safeMood}' is a wonderful step toward balance. Maintain a calm pace and nourish your mind and body nicely. 🌿`
+      ],
+      productive: [
+        `${name}, your battery is ${finalBattery}% today. 🔋 '${safeMood}' suggests real momentum and focus. Use that clarity to tackle the next step in short, efficient moves and protect your energy with a proper pause. ⚡`,
+        `${name}, you have ${finalBattery}% battery strength today! 🔋 Expressing '${safeMood}' shows high drive and focus. Channel this clarity into your top priorities while remembering to hydrate and rest. 🚀`,
+        `${name}, battery is at ${finalBattery}% today! 🔋 With '${safeMood}', your momentum is looking sharp. Break down your goals into smooth action steps and enjoy the flow. ⚡`
+      ],
+      default: [
+        `${name}, your battery is ${finalBattery}% today. 🔋 Even with '${safeMood}', your rhythm can still feel balanced. Take one mindful breath, choose a calm action, and let the day move gently. 💖`,
+        `${name}, today's battery is ${finalBattery}%. 🔋 Reflecting on '${safeMood}', staying in a comfortable rhythm is key. Take a gentle breath and guide your day smoothly without any rush. 🌸`,
+        `${name}, your battery level sits at ${finalBattery}% today. 🔋 Considering '${safeMood}', aim for a steady, grounded day. Focus on simple, easy actions to keep yourself feeling comfortable. ✨`
+      ]
+    };
+
+    const options = enTemplates[moodState] || enTemplates.default;
+    return options[Math.floor(Math.random() * options.length)];
   }
 
-  switch (moodState) {
-    case "distress":
-      return `${name}, 오늘 배터리는 ${finalBattery}%예요. 🔋 '${safeMood}'라고 적어주셨군요. 지금 몸과 마음이 꽤 무거운 상태일 수 있어요. 오늘은 강하게 버티기보다 따뜻한 차 한잔, 짧은 휴식, 편안한 환경으로 기분을 내려놓는 시간이 필요해요. 혼자 감당하지 않아도 괜찮아요. 💛`;
-    case "stress":
-      return `${name}, 오늘 배터리는 ${finalBattery}%예요. 🔋 '${safeMood}'는 마음이 긴장된 흐름이라는 뜻이에요. 지금은 무리하게 밀어붙이기보다 한 번 멈춰 숨을 고르고, 마음을 정리하는 시간을 가지면 에너지가 훨씬 빨리 회복돼요. 🌿`;
-    case "positive":
-      return `${name}, 오늘 배터리는 ${finalBattery}%예요. 🔋 '${safeMood}'라는 표현은 에너지가 잘 올라가고 있다는 신호예요. 지금처럼 작은 기쁨과 가벼운 움직임을 이어가면 하루의 흐름이 더 좋아질 거예요. ✨`;
-    case "recovery":
-      return `${name}, 오늘 배터리는 ${finalBattery}%예요. 🔋 '${safeMood}'는 회복과 안정이 필요한 상태로 느껴져요. 속도를 줄이고, 가볍게 충전하는 시간을 갖는다면 더 건강한 흐름으로 돌아올 수 있어요. 🌱`;
-    case "productive":
-      return `${name}, 오늘 배터리는 ${finalBattery}%예요. 🔋 '${safeMood}'는 집중력과 진행력이 좋은 편이라는 뜻이네요. 그 기세를 살려 짧은 단위로 행동을 나누고, 잠깐의 휴식도 같이 챙기면 더 오래 가요. ⚡`;
-    default:
-      return `${name}, 오늘 배터리는 ${finalBattery}%예요. 🔋 '${safeMood}' 상태를 보니 균형을 맞추는 게 핵심이에요. 한 번 크게 숨 쉬고, 가볍게 할 수 있는 행동 하나를 선택해보세요. 오늘은 편안하게 흐르는 하루가 가장 좋은 선택입니다. 💖`;
-  }
+  // 한국어 멘트 배열 (각 moodState 별 3가지 랜덤 선택지)
+  const koTemplates: Record<string, string[]> = {
+    distress: [
+      `${name}, 오늘 배터리는 ${finalBattery}% 네요. 🔋 '${safeMood}'이라고 표현해주셨네요. 지금은 몸과 마음이 꽤 무거운 상태일 수 있어요. 오늘은 강하게 버티기보다 따뜻한 차 한잔, 짧은 휴식, 편안한 환경으로 기분을 내려놓는 시간이 필요해요. 혼자 감당하지 않아도 괜찮아요. 💛`,
+      `${name}, 오늘 배터리가 ${finalBattery}% 낮네요. 🔋 '${safeMood}' 그만큼 마음고생이나 피로가 심했나 봐요. 지금은 나 자신을 지키는 휴식이 최우선이에요. 오늘 하루는 부담되는 일들을 조금 내려놓아 보세요. ☕`,
+      `${name}, 오늘 배터리 잔량은 ${finalBattery}% 입니다. 🔋 '${safeMood}' 상태라는 건 지친 마음이 보내는 작은 신호예요. 스스로를 억지로 채찍질하지 말고, 따뜻하고 안정감 있는 쉼으로 가득 채워주세요. 💛`
+    ],
+    stress: [
+      `${name}, 오늘 배터리는 ${finalBattery}% 네요. 🔋 '${safeMood}' 마음이 긴장된 흐름이라는 뜻이네요. 지금은 무리하게 밀어붙이기보다 한 번 멈춰 숨을 고르고, 마음을 정리하는 시간을 가지면 에너지가 빨리 회복돼요. 🌿`,
+      `${name}, 오늘 배터리는 ${finalBattery}%로 충전이 필요해요. 🔋 '${safeMood}' 속상하고 감정이 과열된 상태일 수 있어요. 잠시 스트레칭을 하거나 가벼운 산책을 하면서 마음의 열을 식혀보는 걸 추천해요. 🍃`,
+      `${name}, 오늘 배터리는 ${finalBattery}% 입니다. 🔋 '${safeMood}' 기분이 지속되면 에너지 소모가 커질 수 있어요. 지금은 문제를 바로 해결하려 하기보다 깊게 숨을 쉬며 천천히 해보세요. 🍃`
+    ],
+    positive: [
+      `${name}, 오늘 배터리는 ${finalBattery}% 네요. 🔋 '${safeMood}' 에너지가 잘 올라가고 있다는 신호네요. 지금처럼 작은 기쁨과 가벼운 움직임을 이어가면 하루의 흐름이 더 좋아질 거예요. ✨`,
+      `${name}, 오늘 배터리가 ${finalBattery}%로 활력이 가득해요! 🔋 '${safeMood}' 듣기만 해도 기분이 좋아지네요. 기운을 계속 유지하면서 오늘 하고 싶었던 일들을 즐겁게 이어나가 보세요! 🌟`,
+      `${name}, 오늘 배터리는 ${finalBattery}%로 에너지가 넘칩니다. 🔋 '${safeMood}' 마음껏 즐겨보세요! 좋은 기분과 명확한 몰입감이 하루 전체를 멋지게 끌어주실 거예요. 🌟`
+    ],
+    recovery: [
+      `${name}, 오늘 배터리는 ${finalBattery}% 네요. 🔋 '${safeMood}' 회복과 안정이 필요한 상태로 느껴져요. 속도를 줄이고, 가볍게 충전하는 시간을 갖는다면 더 건강한 흐름으로 돌아올 수 있어요. 🌱`,
+      `${name}, 오늘 배터리는 ${finalBattery}% 입니다. 🔋 '${safeMood}' 상태에서 나타나듯, 서서히 에너지를 되찾아가는 중이시네요. 급하게 마음먹지 말고 부드럽고 잔잔한 일상으로 기운을 가다듬어 보세요. 🍵`,
+      `${name}, 오늘 배터리는 ${finalBattery}% 네요. 🔋 '${safeMood}'을 느끼며 편안하게 정돈 중이군요. 무리한 활동보다는 따뜻한 차 한 잔과 편안한 음악으로 재충전의 시간을 만끽하세요. 🌿`
+    ],
+    productive: [
+      `${name}, 오늘 배터리는 ${finalBattery}% 네요. 🔋 '${safeMood}' 집중력과 진행력이 좋은 편이라는 뜻이네요. 그 기세를 살려 짧은 단위로 행동을 나누고, 잠깐의 휴식도 같이 챙기면 더 오래 가요. ⚡`,
+      `${name}, 오늘 배터리는 ${finalBattery}% 준비완료! 🔋 '${safeMood}' 효율적으로 일을 추진할 수 있는 날입니다. 목표를 단계로 나눠 천천히 해결해 보세요! 🚀`,
+      `${name}, 오늘 배터리 ${finalBattery}% 상태입니다. 🔋 '${safeMood}' 기분으로 확신을 가져도 됩니다. 충실히 추진하되 중간중간 에너지를 관리해 주세요. 🌟`
+    ],
+    default: [
+      `${name}, 오늘 배터리는 ${finalBattery}% 네요. 🔋 '${safeMood}' 상태를 보니 균형을 맞추는 게 핵심이에요. 한 번 크게 숨 쉬고, 가볍게 할 수 있는 행동 하나를 선택해보세요. 오늘은 편안하게 흐르는 하루가 가장 좋은 선택입니다. 💖`,
+      `${name}, 오늘 배터리는 ${finalBattery}% 입니다. 🔋 '${safeMood}' 일상을 차분하게 받아들이는 흐름이네요. 마음의 중심을 지키면서, 편안한 일상 속 소소한 여유를 만끽하는 하루 보내세요. 🌸`,
+      `${name}, 오늘 배터리는 ${finalBattery}% 네요. 🔋 '${safeMood}'처럼 평온하게 하루를 시작하거나 마무리해보세요. 급하지 않게 내가 편안한 속도로 하나씩 이어나가는 것이 중요합니다. ✨`
+    ]
+  };
+
+  const options = koTemplates[moodState] || koTemplates.default;
+  return options[Math.floor(Math.random() * options.length)];
 }
 
 export function generateSmartCoaching(input: CoachingEngineInput): CoachingResponse {
@@ -121,17 +168,17 @@ export function generateSmartCoaching(input: CoachingEngineInput): CoachingRespo
             { emoji: "💬", name: "Reach out to someone you trust", desc: "Share your feelings with family, friends, or trusted supporters" },
           ]
         : [
-            { emoji: "📞", name: "24시간 무료 상담전화(109) 연락", desc: "전문 상담사가 24시간 언제든 따뜻하게 당신의 이야기를 들어드립니다" },
+            { emoji: "📞", name: "24시간 무료 상담전화(109)", desc: "전문 상담사가 24시간 언제든 따뜻하게 당신의 이야기를 들어드립니다" },
             { emoji: "💬", name: "소중한 사람에게 마음 전하기", desc: "가족, 친구 등 신뢰할 수 있는 소중한 사람에게 지금의 마음을 털어놓아 보세요" },
           ],
       places: isEn
         ? [
             { emoji: "🛋️", name: "Safe & Warm Space", desc: "Rest in a safe and comfortable environment until you feel grounded" },
-            { emoji: "🏥", name: "Emergency / Clinic Support", desc: "Emergency services: 911 / 112" },
+            { emoji: "🏥", name: "Clinic Support", desc: "Emergency services: 911 / 112" },
           ]
         : [
             { emoji: "🛋️", name: "안전하고 편안한 쉼터", desc: "마음이 안정될 때까지 편안하고 따뜻한 곳에서 충분한 휴식을 취하세요" },
-            { emoji: "🏥", name: "전문 심리상담 및 의료기관", desc: "혼자 견디지 마시고 가까운 전문가나 지원 기관의 따뜻한 도움을 받으세요" },
+            { emoji: "🏥", name: "전문 심리상담", desc: "혼자 견디지 마시고 가까운 전문가나 지원 기관의 따뜻한 도움을 받으세요" },
           ],
       isCrisis: true,
     };
