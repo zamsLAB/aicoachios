@@ -82,23 +82,9 @@ const matchingSchema = z.object({
 });
 
 // ============ Crisis Intervention (Safety Filter) ============
-// ONLY extreme crisis words (자살, 죽고싶, 살기싫, 극단적 선택, 살자, 죽을래, suicide, kill myself, want to die 등)
 const CRISIS_KEYWORDS = [
-  "자살",
-  "죽고싶",
-  "죽고 싶",
-  "살기싫",
-  "살기 싫",
-  "극단적 선택",
-  "극단적선택",
-  "죽을래",
-  "suicide",
-  "kill myself",
-  "want to die",
-  "자해",
-  "목숨을 끊",
-  "사라지고 싶",
-  "뛰어내리",
+  "자살", "죽고싶", "죽고 싶", "살기싫", "살기 싫", "극단적 선택", "극단적선택",
+  "죽을래", "suicide", "kill myself", "want to die", "자해", "목숨을 끊", "사라지고 싶", "뛰어내리",
 ];
 
 const DISTRESS_KEYWORDS = [
@@ -114,7 +100,6 @@ function containsCrisisSignal(...texts: (string | undefined | null)[]): boolean 
   if (CRISIS_KEYWORDS.some((kw) => combined.includes(kw))) {
     return true;
   }
-  // Check for slang "살자" (meaning suicide), avoiding positive context
   if (/(?:^|\s|[.,!?~])살자(?:$|\s|[.,!?~])/.test(combined)) {
     const positiveSalja = ["열심히", "행복하게", "잘", "같이", "함께", "오래", "즐겁게", "신나게", "웃으며", "살아야"];
     const hasPositiveContext = positiveSalja.some((p) => combined.includes(p));
@@ -136,7 +121,7 @@ const CRISIS_MESSAGE_EN =
   "📞 Crisis & Suicide Lifeline: Call or Text 988 (24/7)\n" +
   "📞 Emergency Helpline: 911 / 112";
 
-// ============ Memory Response Cache (Save API quota) ============
+// ============ Memory Response Cache ============
 type CacheEntry = { data: any; expires: number };
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3 hours Cache
@@ -164,11 +149,6 @@ function setCached(key: string, data: any): void {
 }
 
 // ============ Common Scoring Utils ============
-function calcBaseSajuScore(seed: string): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash += seed.charCodeAt(i);
-  return 42 + (hash % 33); // Range: 42 ~ 74
-}
 function clampScore(score: number, min = 18, max = 98): number {
   return Math.max(min, Math.min(max, score));
 }
@@ -207,6 +187,9 @@ function calculateBiorhythmServer(birthdateStr?: string) {
   return { physical, emotional, intellectual, averageScore };
 }
 
+// ----------------------------------------------------
+// 1. Fallback Coaching - 3가지 랜덤 멘트 지원[cite: 2]
+// ----------------------------------------------------
 function fallbackCoaching(input: CoachingInput) {
   const { name, birthdate, todayMood, todayEmoticon, language } = input;
   const isEn = language === "en";
@@ -234,31 +217,54 @@ function fallbackCoaching(input: CoachingInput) {
   let finalBattery = clampScore(Math.round(bio.averageScore * 0.4 + (55 + moodAdjustment + emoticonAdjustment) * 0.6));
 
   if (isDistressMood) {
-    // 아픔, 병, 우울, 슬픔, 혼자/외로움 단어 포함 시 컨디션 30 이하 보장 (18~28%)
     finalBattery = Math.min(28, Math.max(18, finalBattery));
   }
 
   let coachingComment = "";
+  const moodMention = todayMood ? todayMood.trim() : "";
+
   if (isEn) {
-    if (isDistressMood && todayMood) {
-      coachingComment = `${name}, your battery is currently at ${finalBattery}%. 🔋 Hearing that you feel '${todayMood}', your mind and body must be tired and in need of gentle comfort. You don't have to carry everything alone today—wrap yourself in warmth, take a deep breath, and rest. Soon your positive energy will return! 🧸🌸✨`;
-    } else if (isStressMood && todayMood) {
-      coachingComment = `${name}, your battery is at ${finalBattery}% today! 🔋 It looks like things were stressful with '${todayMood}'. Refresh yourself with a cool beverage, your favorite music, and some light movement to shake off the tension! 🍀`;
-    } else {
-      const moodMention = todayMood ? `Reflecting on your mood '${todayMood}', ` : "";
-      coachingComment = `${name}, your battery is at ${finalBattery}% today! 🔋 ${moodMention}harmonize your daily rhythms and take time to recharge with what you love! 💖`;
-    }
+    const enTemplates = {
+      distress: [
+        `${name}, your battery is currently at ${finalBattery}%. 🔋 Hearing that you feel '${moodMention}', your mind and body must be tired. You don't have to carry everything alone today—wrap yourself in warmth, take a deep breath, and rest. Soon your positive energy will return! 🧸🌸✨`,
+        `${name}, today your battery level is down to ${finalBattery}%. 🔋 You expressed '${moodMention}', which shows you are carrying a lot. Please give yourself permission to stop pushing and rest deeply today. 🌿`,
+        `${name}, your energy rests at ${finalBattery}% today. 🔋 '${moodMention}' indicates a heavy emotional state. Be gentle with yourself and take slow, relaxing steps toward recovery. 💛`
+      ],
+      stress: [
+        `${name}, your battery is at ${finalBattery}% today! 🔋 It looks like things were stressful with '${moodMention}'. Refresh yourself with a cool beverage, your favorite music, and some light movement to shake off the tension! 🍀`,
+        `${name}, your battery shows ${finalBattery}% right now. 🔋 Feeling '${moodMention}' can drain your focus. Pause for a moment, stretch out the tightness, and let your body reset. 🍃`,
+        `${name}, today's battery sits at ${finalBattery}%. 🔋 '${moodMention}' reflects high tension. Take a few slow, deep breaths and let go of the pressure—you've done enough for now. ✨`
+      ],
+      default: [
+        `${name}, your battery is at ${finalBattery}% today! 🔋 ${moodMention ? `Reflecting on your mood '${moodMention}', ` : ""}harmonize your daily rhythms and take time to recharge with what you love! 💖`,
+        `${name}, today's battery level is ${finalBattery}%. 🔋 ${moodMention ? `With your status as '${moodMention}', ` : ""}keep a comfortable pace and embrace a calm, balanced daily rhythm. 🌸`,
+        `${name}, you have ${finalBattery}% energy today. 🔋 ${moodMention ? `'${moodMention}' suggests a unique tempo today. ` : ""}Take one gentle step at a time and treat yourself with care. ✨`
+      ]
+    };
+
+    const choices = isDistressMood ? enTemplates.distress : isStressMood ? enTemplates.stress : enTemplates.default;
+    coachingComment = choices[Math.floor(Math.random() * choices.length)];
   } else {
-    if (isDistressMood && todayMood) {
-      coachingComment = `${name}, 오늘 배터리는 ${finalBattery}%로 많이 내려가 있네요. 🔋 적어주신 '${todayMood}' 소식에 몸과 마음이 참 많이 아프고 외롭고 힘들었을 것 같아요. 당신의 마음을 따뜻하게 공감해요. 혼자 다 짊어지려 하지 말고 오늘은 따뜻한 이불 속에서 쉬어가는 시간을 꼭 가져보세요. 이 휴식이 지나고 나면 다시 밝고 따뜻한 긍정의 기운이 피어날 거예요! 🧸🌸✨`;
-    } else if (isStressMood && todayMood) {
-      coachingComment = `${name}, 오늘 배터리는 ${finalBattery}%네요! 🔋 적어주신 '${todayMood}' 상태로 속상하고 마음이 복잡하셨겠어요. 이럴 때는 시원한 음료나 매콤한 간식, 신나는 음악으로 기분 전환과 스트레스 해소를 꼭 해보시는 걸 추천드려요! 🍀`;
-    } else {
-      const moodMention = todayMood
-        ? `남겨주신 '${todayMood}' 상태를 마음 깊이 공감하고 있어요.`
-        : "피로와 기분을 다정하게 채워드릴게요.";
-      coachingComment = `${name}, 오늘 배터리는 ${finalBattery}%네요! 🔋 ${moodMention} 신체·감정·지성 바이오리듬과 오늘 기분을 조화롭게 맞추어 따뜻한 충전의 시간을 선물해보세요! 💖`;
-    }
+    const koTemplates = {
+      distress: [
+        `${name}, 오늘 배터리는 ${finalBattery}% 많이 내려가 있네요. 🔋 '${moodMention}' 소식에 몸과 마음이 참 많이 아프고 외롭고 힘들었을 것 같아요. 당신의 마음을 따뜻하게 공감해요. 혼자 다 짊어지려 하지 말고 오늘은 따뜻한 이불 속에서 쉬어가는 시간을 꼭 가져보세요. 🧸🌸✨`,
+        `${name}, 오늘 배터리 잔량은 ${finalBattery}%로 차분한 휴식이 필요해요. 🔋 '${moodMention}' 상태를 보니 쉼 없이 달려온 몸과 마음이 지친 것 같아요. 오늘만큼은 자책하지 말고 나를 다정하게 돌보는 하루를 보내세요. 💛`,
+        `${name}, 오늘 배터리는 ${finalBattery}%로 충전이 시급합니다. 🔋 '${moodMention}'이라는 마음을 털어놓아 주셔서 감사해요. 무리한 활동은 피하고, 좋아하는 차 한 잔과 함께 깊은 휴식을 취해보세요. 🌿`
+      ],
+      stress: [
+        `${name}, 오늘 배터리는 ${finalBattery}% 네요! 🔋 '${moodMention}' 상태로 속상하고 마음이 복잡하셨겠어요. 이럴 때는 시원한 음료나 매콤한 간식, 신나는 음악으로 기분 전환과 스트레스 해소를 꼭 해보시는 걸 추천드려요! 🍀`,
+        `${name}, 오늘 배터리는 ${finalBattery}% 입니다. 🔋 '${moodMention}' 기분 때문에 답답하고 긴장된 하루였을 수 있어요. 잠시 일손을 놓고 창밖을 보며 크게 숨을 고르는 가벼운 환기를 가져보세요. 🍃`,
+        `${name}, 오늘 배터리는 ${finalBattery}% 로 지친 마음을 다독여줘야 해요. 🔋 '${moodMention}' 탓에 신경이 곤두서 있다면 좋아하는 음악을 들으며 긴장을 천천히 풀어보세요. ✨`
+      ],
+      default: [
+        `${name}, 오늘 배터리는 ${finalBattery}%네요! 🔋 ${moodMention ? `남겨주신 '${moodMention}' 상태를 마음 깊이 공감하고 있어요.` : "피로와 기분을 다정하게 채워드릴게요."} 신체·감정·지성 바이오리듬과 오늘 기분을 조화롭게 맞추어 따뜻한 충전의 시간을 선물해보세요! 💖`,
+        `${name}, 오늘 배터리는 ${finalBattery}% 입니다. 🔋 ${moodMention ? `'${moodMention}' 기분을 살려 ` : ""}내 몸이 원하는 일상의 리듬을 찾아보세요. 한 박자 쉬어가는 여유가 오늘 하루를 더욱 풍요롭게 만들어 줄 거예요. 🌸`,
+        `${name}, 오늘 배터리는 ${finalBattery}% 잔여로 안정적이에요. 🔋 ${moodMention ? `'${moodMention}' 상태를 편안히 받아들이며 ` : ""}소소하지만 확실한 작은 행복을 만끽하는 하루가 되길 바라요. ✨`
+      ]
+    };
+
+    const choices = isDistressMood ? koTemplates.distress : isStressMood ? koTemplates.stress : koTemplates.default;
+    coachingComment = choices[Math.floor(Math.random() * choices.length)];
   }
 
   return {
@@ -267,6 +273,9 @@ function fallbackCoaching(input: CoachingInput) {
   };
 }
 
+// ----------------------------------------------------
+// 2. Fallback Matching - 3가지 랜덤 멘트 지원[cite: 2]
+// ----------------------------------------------------
 function fallbackMatching(input: MatchingInput, currentBattery: number) {
   const { userName, userBirthdate, targetName, targetBirthdate, relationType } = input;
   const userBio = calculateBiorhythmServer(userBirthdate);
@@ -291,7 +300,6 @@ function fallbackMatching(input: MatchingInput, currentBattery: number) {
   const loveKeywords = ["1일", "고백", "사귐", "설렘", "달달", "좋아", "사랑", "짝사랑", "연애", "데이트", "심쿵", "행복", "최고"];
   const friendKeywords = ["베프", "찐친", "친함", "친구", "동료", "가족", "식구"];
 
-  // 사용자가 남긴 글(관계/상태 텍스트) 기반 '오늘 케미' 점수 계산
   let textMatchScore = 75;
   if (negativeConflictKeywords.some((k) => r.includes(k))) {
     textMatchScore = 32;
@@ -312,24 +320,54 @@ function fallbackMatching(input: MatchingInput, currentBattery: number) {
   const adjEmotional = emotionalMatch;
   const adjIntellectual = intellectualMatch;
 
-  // 4개 항목(오늘 케미, 생체, 감성, 지성)의 정확한 산술 평균으로 종합 score 계산!
   const score = Math.max(18, Math.min(98, Math.round((todayChemistryMatch + adjPhysical + adjEmotional + adjIntellectual) / 4)));
 
   let coachingMessage: string;
   const relationMention = relationType.trim() ? `'${relationType.trim()}'` : "현재 관계";
 
+  // 매칭 멘트 다변화 배열 (3가지 랜덤)
   if (negativeConflictKeywords.some((k) => r.includes(k))) {
-    coachingMessage = `${userName}님과 ${targetName}님의 감정 바이오리듬 파동이 잠시 교차하는 시점이에요. 적어주신 ${relationMention} 상황은 일시적이니, 귀여운 이모티콘으로 다정하게 화해의 신호를 전달해보세요! 🍓⚡`;
+    const conflictOptions = [
+      `${userName}님과 ${targetName}님의 감정 바이오리듬 파동이 잠시 교차하는 시점이에요. 적어주신 ${relationMention} 상황은 일시적이니, 귀여운 이모티콘으로 다정하게 화해의 신호를 전달해보세요! 🍓⚡`,
+      `두 분의 주파수에 살짝 오해가 쌓일 수 있는 타임라인입니다. 적어주신 ${relationMention} 상태에선 억지로 대화를 끌어가기보다 서운했던 마음을 차분히 정리한 뒤 전달해보세요. 🌿`,
+      `${userName}님, ${targetName}님과의 감정 선이 긴장되어 있네요. ${relationMention} 분위기를 부드럽게 풀려면 한 템포 쉬어가는 센스가 필요해요! ✨`
+    ];
+    coachingMessage = conflictOptions[Math.floor(Math.random() * conflictOptions.length)];
   } else if (breakKeywords.some((k) => r.includes(k))) {
-    coachingMessage = `두 사람의 감정 바이오리듬 파동에 거리가 생겨 마음이 아프실 것 같아요. 지금은 ${userName}님 자신의 바이오 에너지를 먼저 온전히 채우는 따뜻한 휴식이 필요한 때입니다. 🧸🕯️`;
+    const breakOptions = [
+      `두 사람의 감정 바이오리듬 파동에 거리가 생겨 마음이 아프실 것 같아요. 지금은 ${userName}님 자신의 바이오 에너지를 먼저 온전히 채우는 따뜻한 휴식이 필요한 때입니다. 🧸🕯️`,
+      `${targetName}님과의 주파수 연결이 느려져 마음고생이 많으셨겠어요. ${relationMention} 여파를 지우고 온전히 자신만의 바이오 에너지를 회복하는 시간을 꼭 가져보세요. 💛`,
+      `지금은 마음을 채우는 휴식이 먼저예요. ${relationMention} 여운으로 힘들 수 있지만, ${userName}님의 에너지가 돌아오면 다시 환한 빛을 발할 거예요. 🌱`
+    ];
+    coachingMessage = breakOptions[Math.floor(Math.random() * breakOptions.length)];
   } else if (loveKeywords.some((k) => r.includes(k))) {
-    coachingMessage = `와! 두 사람의 감정 바이오리듬 파동이 매우 매끄럽게 동기화되어 있어요! ${targetName}님과의 ${relationMention} 분위기가 핑크빛으로 무르익었으니 마음을 전해보세요. 💕`;
+    const loveOptions = [
+      `와! 두 사람의 감정 바이오리듬 파동이 매우 매끄럽게 동기화되어 있어요! ${targetName}님과의 ${relationMention} 분위기가 핑크빛으로 무르익었으니 마음을 전해보세요. 💕`,
+      `${userName}님과 ${targetName}님의 에너지가 기분 좋게 어우러지고 있네요! 적어주신 ${relationMention} 설렘을 그대로 담아 가벼운 데이트나 깜짝 선물로 마음을 표해보세요! 🌸`,
+      `두 분의 바이오 파동 주파수가 환상적인 조화를 이루고 있습니다. ${relationMention} 리듬을 타고 예쁜 추억을 만들어가기에 더없이 좋은 날이에요! ✨`
+    ];
+    coachingMessage = loveOptions[Math.floor(Math.random() * loveOptions.length)];
   } else if (r.includes("친구") || r.includes("찐친") || r.includes("베프")) {
-    coachingMessage = `남겨주신 ${relationMention} 상태처럼 ${userName}님과 ${targetName}님은 바이오 주파수가 유쾌하게 잘 통하는 사이예요! 🌟`;
+    const friendOptions = [
+      `남겨주신 ${relationMention} 상태처럼 ${userName}님과 ${targetName}님은 바이오 주파수가 유쾌하게 잘 통하는 사이예요! 🌟`,
+      `${targetName}님과는 서로의 텐션을 자연스럽게 끌어올려 주는 에너지를 가지고 계시네요! ${relationMention}답게 신나는 수다로 스트레스를 풀어보세요! 🎉`,
+      `두 사람의 신체 및 지성 파동이 유쾌하게 맞물려 있네요. ${relationMention} 사이의 탄탄한 케미를 모티브 삼아 재미있는 일상을 공모해보세요! 🍬`
+    ];
+    coachingMessage = friendOptions[Math.floor(Math.random() * friendOptions.length)];
   } else if (r.includes("가족")) {
-    coachingMessage = `남겨주신 ${relationMention} 관계처럼 은근히 서로를 든든하게 받쳐주는 바이오 에너지를 지니고 있어요! 오늘 따뜻한 한마디를 건네보세요. 🏠✨`;
+    const familyOptions = [
+      `남겨주신 ${relationMention} 관계처럼 은근히 서로를 든든하게 받쳐주는 바이오 에너지를 지니고 있어요! 오늘 따뜻한 한마디를 건네보세요. 🏠✨`,
+      `${userName}님과 ${targetName}님은 묵묵히 기운을 보태주는 편안한 조화를 이룹니다. ${relationMention} 사이에 안부 문자 하나로 따뜻한 파동을 전달해보세요. 🌿`,
+      `서로의 컨디션을 가장 차분하게 받쳐주는 인연입니다. ${relationMention} 분위기를 위해 따뜻한 음료나 맛있는 음식으로 소소한 즐거움을 나눠보세요. 💛`
+    ];
+    coachingMessage = familyOptions[Math.floor(Math.random() * familyOptions.length)];
   } else {
-    coachingMessage = `남겨주신 ${relationMention} 상태에 대해 마음 깊이 공감하고 있어요. ${userName}님과 ${targetName}님은 물 흐르듯 조화로운 바이오 파동을 지니고 있으니 편안하게 다가가보세요. 🍃`;
+    const defaultOptions = [
+      `남겨주신 ${relationMention} 상태에 대해 마음 깊이 공감하고 있어요. ${userName}님과 ${targetName}님은 물 흐르듯 조화로운 바이오 파동을 지니고 있으니 편안하게 다가가보세요. 🍃`,
+      `${userName}님과 ${targetName}님의 흐름이 잔잔하고 안락하게 유지되고 있습니다. ${relationMention} 맥락에 따라 차분하고 부담 없는 스탠스로 교감을 이어가기 좋습니다. 🌸`,
+      `두 분의 바이오 파동은 편안하고 자연스러운 균형을 찾아가고 있어요. ${relationMention} 관계 속에 서로의 템포를 지켜주며 소통해보세요. ✨`
+    ];
+    coachingMessage = defaultOptions[Math.floor(Math.random() * defaultOptions.length)];
   }
 
   const { level, emoji } = getChemistry(score);
@@ -354,7 +392,7 @@ app.post("/api/coaching", async (req, res) => {
     }
     const input = parsed.data;
 
-    // Safety: Immediate fallback for severe distress signals
+    // Safety
     if (containsCrisisSignal(input.todayMood)) {
       const isEn = input.language === "en";
       return res.json({
@@ -410,9 +448,9 @@ app.post("/api/coaching", async (req, res) => {
 **점수 계산 및 코칭 규칙 (필수 준수)**:
 1. 생년월일 기반 바이오리듬 평균 점수(${bio.averageScore}점)와 오늘의 기분/상태(${todayMood}) 및 이모티콘 가중치를 결합하여 종합 컨디션 배터리를 계산하세요.
 2. **[필수 규정 - 아픔/병/우울/슬픔/혼자 감정 처리]**:
-   만약 사용자의 오늘의 기분/상태(${todayMood})에 '아픔', '아파', '병', '우울', '슬픔', '슬퍼', '혼자', '외로움', '외롭', '힘듦', '힘들어', '괴롭', '지침', '눈물', '몸살', '상처' 등 아픔, 질병, 우울, 슬픔, 혼자/외로움 관련 키워드가 포함되어 있다면:
+   만약 사용자의 오늘의 기분/상태(${todayMood})에 '아픔', '아파', '병', '우울', '슬픔', '슬퍼', '혼자', '외로움', '외롭', '힘듦', '힘들어', '괴롭', '지침', '눈물', '몸살', '상처' 등 관련 키워드가 포함되어 있다면:
    - **conditionBattery는 반드시 30 이하(18~30 사이)로 부여**하세요.
-   - **coachingComment**에는 아프고 슬프고 혼자라 외로운 마음을 깊이 따뜻하게 공감해 주고, "혼자가 아니에요", "잘 견뎌내고 있어요", "충분히 쉬어가면 다시 밝고 따뜻한 긍정의 기운이 채워질 거예요"와 같이 **희망적이고 따뜻한 긍정의 메시지**를 다정하게 담아내세요.
+   - **coachingComment**에는 아프고 슬프고 혼자라 외로운 마음을 깊이 따뜻하게 공감해 주고 희망적이고 따뜻한 긍정의 메시지를 담아내세요.
 3. 만약 사용자의 오늘의 기분/상태(${todayMood})에 화남, 짜증, 다툼, 혼남, 빡침, 열받음, 스트레스 등 마찰/스트레스 관련 키워드가 포함되어 있다면, 사용자의 속상한 마음을 공감해 주고 '기분 전환 및 스트레스 해소'에 어울리는 따뜻한 조언을 담아내세요.
 4. coachingComment는 **2~3문장 이내**로 짧고 다정하게 작성하세요. 사주 오행 단어는 언급 금지.
 ${isEn ? `5. Output language: English. Start with "${name}, your battery is [score]% today! [emoji]"` : `5. 출력 언어: 한국어. 첫 문장은 "${name}, 오늘 배터리는 [점수]%네요! [이모지]"로 시작.`}
@@ -469,7 +507,7 @@ app.post("/api/matching", async (req, res) => {
     const input = parsed.data;
     const currentBattery = input.userBattery && input.userBattery > 0 ? input.userBattery : 70;
 
-    // Safety: Immediate fallback for severe distress signals
+    // Safety
     if (containsCrisisSignal(input.relationType, input.targetName)) {
       const isEn = input.language === "en";
       return res.json({
@@ -504,7 +542,7 @@ app.post("/api/matching", async (req, res) => {
 
 [규칙]
 1. 두 사람의 신체, 감정, 지성 바이오리듬 주파수의 조화도(0~100%) 및 사용자가 적어준 관계·상태 글('${relationType}')을 감성 분석하여 종합 score를 계산하세요.
-2. todayChemistryMatch 수치는 사용자가 입력한 관계·상태 글('${relationType}')의 감정, 설렘, 갈등, 이슈 상태를 분석하여 계산한 '오늘 케미 매칭 %' (18~98) 수치입니다. (예: 긍정/달달 85~98%, 갈등/싸움 20~45%, 평범 65~80%)
+2. todayChemistryMatch 수치는 사용자가 입력한 관계·상태 글('${relationType}')의 감정, 설렘, 갈등, 이슈 상태를 분석하여 계산한 '오늘 케미 매칭 %' (18~98) 수치입니다.
 3. physicalMatch, emotionalMatch, intellectualMatch, todayChemistryMatch 수치는 종합 score와 일관되도록 동기화하여 부여하세요.
 4. score에 따라 chemistryLevel/chemistryEmoji 지정: 90+ "환상의 리듬 케미! 💕"/"💖", 80-89 "든든한 에너지 짝꿍! ⭐"/"⭐", 70-79 "편안한 주파수 🫧"/"🍬", 60-69 "무난한 공존 🍃"/"🌱", 59- "파동 조정 필요 ⚡"/"🔌"
 5. coachingMessage 규칙: 사용자가 입력한 관계 및 오늘상태('${relationType}')를 언급하면서 따뜻한 공감과 바이오 파동 기반의 조언을 건네세요. 2~3문장 이내, 다정한 존댓말. "사주 오행" 표현 사용 금지.
@@ -543,7 +581,6 @@ app.post("/api/matching", async (req, res) => {
           const eMatch = typeof parsedRes.emotionalMatch === "number" ? parsedRes.emotionalMatch : result.emotionalMatch;
           const iMatch = typeof parsedRes.intellectualMatch === "number" ? parsedRes.intellectualMatch : result.intellectualMatch;
 
-          // 4개 세부 항목의 산술 평균으로 종합 score 100% 정합성 보장
           const exactAvgScore = Math.max(18, Math.min(98, Math.round((tChem + pMatch + eMatch + iMatch) / 4)));
           const { level, emoji } = getChemistry(exactAvgScore);
 
@@ -583,7 +620,6 @@ async function initServer() {
   } else {
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      // If request has a file extension (e.g. .png, .json, .js, .css), return 404 instead of SPA index.html
       if (/\.[a-zA-Z0-9]+$/.test(req.path)) {
         return res.status(404).send("File not found");
       }
