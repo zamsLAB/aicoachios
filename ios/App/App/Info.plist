@@ -72,7 +72,6 @@
     </array>
     <key>SKAdNetworkItems</key>
     <array>
-        <!-- 기존 애드몹 등 네트워크 ID -->
         <dict>
             <key>SKAdNetworkIdentifier</key>
             <string>cstr6suwn9.skadnetwork</string>
@@ -133,7 +132,6 @@
             <key>SKAdNetworkIdentifier</key>
             <string>3qcr597p9d.skadnetwork</string>
         </dict>
-        <!-- 유니트(Unity Ads) 추가 SKAdNetwork ID 목록 -->
         <dict><key>SKAdNetworkIdentifier</key><string>prcb7njmu6.skadnetwork</string></dict>
         <dict><key>SKAdNetworkIdentifier</key><string>4pfyvq9l8r.skadnetwork</string></dict>
         <dict><key>SKAdNetworkIdentifier</key><string>pwa73g5rt2.skadnetwork</string></dict>
