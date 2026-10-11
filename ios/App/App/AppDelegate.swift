@@ -28,6 +28,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
     var bridgeWebView: WKWebView?
     private var attRequested = false
     private var unityAdsInitializationStarted = false
+    private var unityAdsReady = false
+    private var pendingBannerRequest = false
+    private var initRetryCount = 0
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
 
@@ -144,11 +147,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
     // MARK: - Unity Ads Initialization Delegate
     func initializationComplete() {
         print("Unity Ads initialized successfully in iOS Native (testMode: \(testMode))")
-        loadAds()
+        DispatchQueue.main.async {
+            self.unityAdsReady = true
+            self.loadAds()
+            if self.pendingBannerRequest {
+                self.pendingBannerRequest = false
+                self.showBannerAd()
+            }
+        }
     }
 
     func initializationFailed(_ error: UnityAdsInitializationError, withMessage message: String) {
         print("Unity Ads initialization failed: \(error) - \(message)")
+        DispatchQueue.main.async {
+            guard self.initRetryCount < 3 else { return }
+            self.initRetryCount += 1
+            self.unityAdsInitializationStarted = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+                self?.initializeUnityAdsIfNeeded()
+            }
+        }
     }
 
     func loadAds() {
@@ -214,6 +232,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
 
     @objc public func showBannerAd() {
         DispatchQueue.main.async {
+            guard self.unityAdsReady else {
+                self.pendingBannerRequest = true
+                print("showBannerAd: Unity Ads not initialized yet, queued")
+                return
+            }
             guard let rootVC = self.currentRootViewController() else {
                 print("showBannerAd: rootViewController not found")
                 return
@@ -238,6 +261,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
 
     @objc public func hideBannerAd() {
         DispatchQueue.main.async {
+            self.pendingBannerRequest = false
             self.currentBannerView?.removeFromSuperview()
             self.currentBannerView = nil
         }
@@ -245,6 +269,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
 
     @objc public func showRewardedAd() {
         DispatchQueue.main.async {
+            guard self.unityAdsReady else {
+                self.evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityAdFailed', { detail: 'not_ready' }));")
+                return
+            }
             guard let rootVC = self.currentRootViewController() else {
                 print("showRewardedAd: rootViewController not found")
                 return
@@ -255,6 +283,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
 
     @objc public func showInterstitialAd() {
         DispatchQueue.main.async {
+            guard self.unityAdsReady else {
+                self.evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityAdFailed', { detail: 'not_ready' }));")
+                return
+            }
             guard let rootVC = self.currentRootViewController() else {
                 print("showInterstitialAd: rootViewController not found")
                 return
