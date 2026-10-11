@@ -1,198 +1,207 @@
-import UIKit
-import WebKit
-import Capacitor
-import UnityAds
-import FirebaseCore
-
-@UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, UADSBannerViewDelegate, UnityAdsInitializationDelegate, UnityAdsLoadDelegate, UnityAdsShowDelegate {
-
-    var window: UIWindow?
-    
-    // 유니티 대시보드 스크린샷 기준 ID 매칭
-    let gameId = "800380054" // iOS Game ID
-    let testMode = false      // 테스트 시 true
-    
-    let bannerPlacement = "Banner_ios"
-    let rewardedPlacement = "BP_Rewarded_iOS"
-    let interstitialPlacement = "BP_Interstitial_iOS"
-    
-    var currentBannerView: UADSBannerView?
-    var bridgeWebView: WKWebView?
-
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        
-        // Firebase 초기화
-        FirebaseApp.configure()
-        
-        // 1. Unity Ads SDK 초기화
-        UnityAds.initialize(gameId, testMode: testMode, initializationDelegate: self)
-        
-        return true
-    }
-
-    // Capacitor 브릿지 로드 및 JS 메시지 핸들러 등록
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        if let rootViewController = self.window?.rootViewController as? CAPBridgeViewController {
-            if self.bridgeWebView == nil {
-                self.bridgeWebView = rootViewController.webView
-                
-                let userContentController = rootViewController.webView?.configuration.userContentController
-                userContentController?.removeScriptMessageHandler(forName: "showBannerAd")
-                userContentController?.removeScriptMessageHandler(forName: "hideBannerAd")
-                userContentController?.removeScriptMessageHandler(forName: "showRewardedAd")
-                userContentController?.removeScriptMessageHandler(forName: "showInterstitialAd")
-
-                userContentController?.add(self, name: "showBannerAd")
-                userContentController?.add(self, name: "hideBannerAd")
-                userContentController?.add(self, name: "showRewardedAd")
-                userContentController?.add(self, name: "showInterstitialAd")
-
-                // 안드로이드 UnityAdsBridge 호환용 JS 인터페이스 등록
-                let initScript = WKUserScript(source: """
-                    window.UnityAdsBridge = {
-                        showBannerAd: function() { window.webkit.messageHandlers.showBannerAd.postMessage(null); },
-                        hideBannerAd: function() { window.webkit.messageHandlers.hideBannerAd.postMessage(null); },
-                        showRewardedAd: function() { window.webkit.messageHandlers.showRewardedAd.postMessage(null); },
-                        showInterstitialAd: function() { window.webkit.messageHandlers.showInterstitialAd.postMessage(null); }
-                    };
-                """, injectionTime: .atDocumentStart, forMainFrameOnly: true)
-                userContentController?.addUserScript(initScript)
-            }
-        }
-    }
-
-    // MARK: - WKScriptMessageHandler
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        switch message.name {
-        case "showBannerAd":
-            showBannerAd()
-        case "hideBannerAd":
-            hideBannerAd()
-        case "showRewardedAd":
-            showRewardedAd()
-        case "showInterstitialAd":
-            showInterstitialAd()
-        default:
-            break
-        }
-    }
-
-    // MARK: - Unity Ads Initialization Delegate
-    func initializationComplete() {
-        print("Unity Ads initialized successfully in iOS Native")
-        loadAds()
-    }
-
-    func initializationFailed(_ error: UnityAdsInitializationError, withMessage message: String) {
-        print("Unity Ads initialization failed: \(error) - \(message)")
-    }
-
-    func loadAds() {
-        UnityAds.load(rewardedPlacement, loadDelegate: self)
-        UnityAds.load(interstitialPlacement, loadDelegate: self)
-    }
-
-    // MARK: - Unity Ads Load Delegate (Protocol Conformance)
-    func unityAdsAdLoaded(_ placementId: String) {
-        print("Unity ad loaded successfully: \(placementId)")
-    }
-
-    func unityAdsAdFailed(toLoad placementId: String, withError error: UnityAdsLoadError, withMessage message: String) {
-        print("Unity ad load failed: \(placementId) - \(error) - \(message)")
-    }
-
-    // MARK: - Unity Ads Show Delegate (Protocol Conformance)
-    func unityAdsShowStart(_ placementId: String) {
-        print("Unity ad show start: \(placementId)")
-    }
-
-    func unityAdsShowClick(_ placementId: String) {
-        print("Unity ad clicked: \(placementId)")
-    }
-
-    func unityAdsShowComplete(_ placementId: String, withFinish state: UnityAdsShowCompletionState) {
-        print("Unity ad complete: \(placementId) state: \(state)")
-        loadAds()
-        
-        if placementId == rewardedPlacement {
-            evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityRewardCompleted'));")
-        } else if placementId == interstitialPlacement {
-            evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityInterstitialCompleted'));")
-        }
-    }
-
-    func unityAdsShowFailed(_ placementId: String, withError error: UnityAdsShowError, withMessage message: String) {
-        print("Unity ad show failed: \(placementId) - \(error) - \(message)")
-        loadAds()
-        evaluateJS(script: "window.dispatchEvent(new CustomEvent('unityAdFailed', { detail: '\(message)' }));")
-    }
-
-    // MARK: - Helper & Native Ad Functions
-    func evaluateJS(script: String) {
-        DispatchQueue.main.async {
-            if let rootVC = self.window?.rootViewController as? CAPBridgeViewController {
-                rootVC.webView?.evaluateJavaScript(script, completionHandler: nil)
-            }
-        }
-    }
-    
-    @objc public func showBannerAd() {
-        DispatchQueue.main.async {
-            guard let rootVC = self.window?.rootViewController else { return }
-            self.currentBannerView?.removeFromSuperview()
-            
-            let banner = UADSBannerView(placementId: self.bannerPlacement, size: CGSize(width: 320, height: 50))
-            banner.delegate = self
-            banner.translatesAutoresizingMaskIntoConstraints = false
-            rootVC.view.addSubview(banner)
-            rootVC.view.bringSubviewToFront(banner)
-            
-            NSLayoutConstraint.activate([
-                banner.centerXAnchor.constraint(equalTo: rootVC.view.centerXAnchor),
-                banner.bottomAnchor.constraint(equalTo: rootVC.view.safeAreaLayoutGuide.bottomAnchor)
-            ])
-            
-            banner.load()
-            self.currentBannerView = banner
-        }
-    }
-
-    @objc public func hideBannerAd() {
-        DispatchQueue.main.async {
-            self.currentBannerView?.removeFromSuperview()
-            self.currentBannerView = nil
-        }
-    }
-
-    @objc public func showRewardedAd() {
-        DispatchQueue.main.async {
-            guard let rootVC = self.window?.rootViewController else { return }
-            UnityAds.show(rootVC, placementId: self.rewardedPlacement, showDelegate: self)
-        }
-    }
-
-    @objc public func showInterstitialAd() {
-        DispatchQueue.main.async {
-            guard let rootVC = self.window?.rootViewController else { return }
-            UnityAds.show(rootVC, placementId: self.interstitialPlacement, showDelegate: self)
-        }
-    }
-
-    // MARK: - UADSBannerViewDelegate
-    func bannerViewDidLoad(_ bannerView: UADSBannerView) {
-        print("iOS Unity Banner Loaded Successfully")
-    }
-
-    func bannerViewDidClick(_ bannerView: UADSBannerView) {
-        print("iOS Unity Banner Clicked")
-    }
-
-    func bannerViewDidLeaveApplication(_ bannerView: UADSBannerView) {
-        print("iOS Unity Banner Left Application")
-    }
-
-    func bannerViewDidError(_ bannerView: UADSBannerView, error: UADSBannerError) {
-        print("iOS Unity Banner Load Error: \(error.localizedDescription)")
-    }
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Used to access photo library for your profile.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Used to access the camera to take photos.</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <key>CAPACITOR_DEBUG</key>
+    <string>$(CAPACITOR_DEBUG)</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>AIcoach</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key>
+        <false/>
+        <key>UISceneConfigurations</key>
+        <dict>
+            <key>UIWindowSceneSessionRoleApplication</key>
+            <array>
+                <dict>
+                    <key>UISceneConfigurationName</key>
+                    <string>Default Configuration</string>
+                    <key>UISceneDelegateClassName</key>
+                    <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+                    <key>UISceneStoryboardFile</key>
+                    <string>Main</string>
+                </dict>
+            </array>
+        </dict>
+    </dict>
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+    <key>UIMainStoryboardFile</key>
+    <string>Main</string>
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>armv7</string>
+    </array>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>SKAdNetworkItems</key>
+    <array>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>cstr6suwn9.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>4fzdc2evr5.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>2fnua5tdw4.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>8s468mfl3y.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>3rd42ekr43.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>4468km3ulz.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>7ug5zh24hu.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>9t245vhmpl.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>kbd757ywx3.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>m8dbw4sv7c.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>v72qych5uu.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>n6fk4nfna4.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>4pfuvr1v3r.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>2u9pt9hc89.skadnetwork</string>
+        </dict>
+        <dict>
+            <key>SKAdNetworkIdentifier</key>
+            <string>3qcr597p9d.skadnetwork</string>
+        </dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>prcb7njmu6.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>4pfyvq9l8r.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>pwa73g5rt2.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>mlmmfzh3r3.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>v9wttpbfk9.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>v79kvwwj4g.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>wzmmz9fp6w.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>97r2b46745.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>p78axxw29g.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>5a6flpkh64.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>lr83yxwka7.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>4w7y6s5ca2.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>c6k4g5qg8m.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>6yxyv74ff7.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>s39g8k73mm.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>5l3tpt7t6e.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>w9q455wk68.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>ydx93a7ass.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>mp6xlyr22a.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>vhf287vqwu.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>n9x2a789qt.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>238da6jt44.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>44jx6755aq.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>294l99pt4k.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>e5fvkxwrpn.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>f73kdq92p3.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>4dzt52r2t5.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>f7s53z58qe.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>av6w8kgt66.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>5f5u5tfb26.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>77y3x8wds4.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>9rd848q2bz.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>x44k69ngh6.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>wg4vff78zm.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>9nlqeag3gk.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>22mmun2rn5.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>3sh42y64q3.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>ppxm28t8ap.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>3qy4746246.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>g6gcrrvk4p.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>zq492l623r.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>32z4fx6l9h.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>a2p9lx4jpn.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>5lm9lj6jb7.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>feyaarzu9v.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>xga6mpmplv.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>578prtvx9j.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>hs6bdukanm.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>k6y4y55b64.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>424m5254lk.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>5tjdwbrq8w.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>k674qkevps.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>t38b2kh725.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>glqzh8vgby.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>mqn7fxpca7.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>488r3q3dtq.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>f38h382jlk.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>zmvfpc5aq8.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>tl55sbb4fm.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>klf5c3l5u5.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>a8cz6cu7e5.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>mj797d8u6f.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>yclnxrl5pm.skadnetwork</string></dict>
+        <dict><key>SKAdNetworkIdentifier</key><string>uw77j35x4d.skadnetwork</string></dict>
+    </array>
+    <key>GADApplicationIdentifier</key>
+    <string>ca-app-pub-3940256099942544~1458002511</string>
+    <key>NSUserTrackingUsageDescription</key>
+    <string>맞춤형 광고 제공 및 서비스 개선을 위해 권한이 필요합니다.</string>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <true/>
+</dict>
+</plist>
