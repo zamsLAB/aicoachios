@@ -27,17 +27,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
     var currentBannerView: UADSBannerView?
     var bridgeWebView: WKWebView?
     private var attRequested = false
+    private var unityAdsInitializationStarted = false
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
 
         // Firebase 초기화
         FirebaseApp.configure()
 
-        // Unity Ads SDK 초기화
-        UnityAds.initialize(gameId, testMode: testMode, initializationDelegate: self)
-
-        // 씬(Scene) 기반 앱에서는 applicationDidBecomeActive(_:)가 호출되지 않을 수 있어서
-        // 알림(Notification)으로 대신 받는다.
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(appDidBecomeActive),
@@ -45,10 +41,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
             object: nil
         )
 
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+            self?.initializeUnityAdsIfNeeded()
+        }
+
         return true
     }
 
-    // 씬 미사용 환경 대비 (두 경로 모두 중복 실행되어도 안전하게 처리됨)
     func applicationDidBecomeActive(_ application: UIApplication) {
         setupBridgeIfNeeded()
     }
@@ -76,10 +75,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate, WKScriptMessageHandler, U
                 if ATTrackingManager.trackingAuthorizationStatus == .notDetermined {
                     ATTrackingManager.requestTrackingAuthorization { status in
                         print("ATT status: \(status.rawValue)")
+                        DispatchQueue.main.async {
+                            self.initializeUnityAdsIfNeeded()
+                        }
                     }
+                } else {
+                    self.initializeUnityAdsIfNeeded()
                 }
+            } else {
+                self.initializeUnityAdsIfNeeded()
             }
         }
+    }
+
+    private func initializeUnityAdsIfNeeded() {
+        guard !unityAdsInitializationStarted else { return }
+        unityAdsInitializationStarted = true
+        UnityAds.initialize(gameId, testMode: testMode, initializationDelegate: self)
     }
 
     // MARK: - Capacitor 브릿지 로드 및 JS 메시지 핸들러 등록
